@@ -12,17 +12,21 @@
 //!
 //! # Status
 //!
-//! **Milestone M1 (foundation).** Fetching, decoding and fixture loading work.
-//! Contract-spec resolution — turning `Error(Contract, #3)` into a name — is
-//! milestone M3 and is not implemented. See `ROADMAP.md`.
+//! **Milestones M2–M3.** Fetching, decoding and fixture loading for
+//! transactions, plus fetching contract specs so the engine can name contract
+//! errors ([`contract`]). The spec *parsing and resolution* is pure and lives
+//! in the analysis crate; this crate only obtains the bytes.
 
 #![doc(html_root_url = "https://docs.rs/soroban-failure-rpc")]
 
 pub mod client;
+pub mod contract;
 pub mod decode;
 pub mod error;
 pub mod fixture;
 
 pub use client::RpcClient;
+pub use contract::{fetch_specs, ContractSource, SourceError};
 pub use decode::{decode_get_transaction, DecodedTransaction, DiagnosticSource, TransactionStatus};
 pub use error::{DecodeError, RpcError};
+pub use fixture::FixtureContractSource;

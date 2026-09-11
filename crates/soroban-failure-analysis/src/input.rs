@@ -6,7 +6,13 @@
 //!
 //! Construct one with [`AnalysisInput::builder`].
 
-use stellar_xdr::{DiagnosticEvent, TransactionEnvelope, TransactionMeta, TransactionResult};
+use std::collections::BTreeMap;
+
+use stellar_xdr::{
+    ContractId, DiagnosticEvent, TransactionEnvelope, TransactionMeta, TransactionResult,
+};
+
+use crate::contract::SpecAvailability;
 
 /// Decoded transaction artifacts for a single failed transaction.
 ///
@@ -35,6 +41,12 @@ pub struct AnalysisInput {
     /// `false` means their absence carries no information, and rules that depend
     /// on them must decline to fire rather than concluding from silence.
     pub diagnostics_enabled: bool,
+    /// Contract specs, keyed by contract, for naming contract errors (M3).
+    ///
+    /// Supplied by the caller: the engine never fetches them. A contract absent
+    /// from this map is reported as "no spec supplied", never guessed at. Use
+    /// [`crate::contract::contracts_needing_specs`] to learn which to fetch.
+    pub contract_specs: BTreeMap<ContractId, SpecAvailability>,
 }
 
 impl AnalysisInput {
@@ -51,6 +63,7 @@ impl AnalysisInput {
                 meta: None,
                 diagnostic_events: Vec::new(),
                 diagnostics_enabled: false,
+                contract_specs: BTreeMap::new(),
             },
         }
     }
@@ -61,6 +74,15 @@ impl AnalysisInput {
     /// of evidence is not evidence of absence when the node never emitted any.
     pub fn has_diagnostic_evidence(&self) -> bool {
         self.diagnostics_enabled && !self.diagnostic_events.is_empty()
+    }
+
+    /// Attach contract specs obtained after decoding.
+    ///
+    /// Specs are usually fetched *after* the transaction is decoded, because
+    /// which contracts need them depends on its diagnostic events.
+    pub fn with_contract_specs(mut self, specs: BTreeMap<ContractId, SpecAvailability>) -> Self {
+        self.contract_specs.extend(specs);
+        self
     }
 }
 
@@ -90,6 +112,12 @@ impl AnalysisInputBuilder {
     pub fn diagnostic_events(mut self, events: Vec<DiagnosticEvent>) -> Self {
         self.inner.diagnostic_events = events;
         self.inner.diagnostics_enabled = true;
+        self
+    }
+
+    /// Attach one contract's spec, or the reason it is unavailable.
+    pub fn contract_spec(mut self, contract: ContractId, spec: SpecAvailability) -> Self {
+        self.inner.contract_specs.insert(contract, spec);
         self
     }
 

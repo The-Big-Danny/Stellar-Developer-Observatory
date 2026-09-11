@@ -7,9 +7,9 @@
 use stellar_xdr::{
     ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ContractId,
     DiagnosticEvent, ExtensionPoint, Hash, Memo, MuxedAccount, Operation, Preconditions, ScError,
-    ScString, ScSymbol, ScVal, SequenceNumber, Transaction, TransactionEnvelope, TransactionExt,
-    TransactionResult, TransactionResultExt, TransactionResultResult, TransactionV1Envelope,
-    Uint256,
+    ScSpecEntry, ScSpecUdtErrorEnumCaseV0, ScSpecUdtErrorEnumV0, ScString, ScSymbol, ScVal,
+    SequenceNumber, Transaction, TransactionEnvelope, TransactionExt, TransactionResult,
+    TransactionResultExt, TransactionResultResult, TransactionV1Envelope, Uint256,
 };
 
 use crate::input::AnalysisInput;
@@ -65,6 +65,24 @@ pub(crate) fn host_fn_failed(e: ScError) -> DiagnosticEvent {
     )
 }
 
+pub(crate) fn error_enum(name: &str, cases: &[(&str, u32)]) -> ScSpecEntry {
+    ScSpecEntry::UdtErrorEnumV0(ScSpecUdtErrorEnumV0 {
+        doc: "".try_into().unwrap(),
+        lib: "".try_into().unwrap(),
+        name: name.try_into().unwrap(),
+        cases: cases
+            .iter()
+            .map(|(n, v)| ScSpecUdtErrorEnumCaseV0 {
+                doc: "".try_into().unwrap(),
+                name: (*n).try_into().unwrap(),
+                value: *v,
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap(),
+    })
+}
+
 /// A structurally valid, operation-less, failed transaction.
 pub(crate) fn minimal_input() -> AnalysisInput {
     let tx = Transaction {
@@ -86,4 +104,12 @@ pub(crate) fn minimal_input() -> AnalysisInput {
         ext: TransactionResultExt::V0,
     };
     AnalysisInput::builder(envelope, result).build()
+}
+
+/// [`minimal_input`] carrying the given diagnostic events.
+pub(crate) fn input_with_events(events: Vec<DiagnosticEvent>) -> AnalysisInput {
+    let base = minimal_input();
+    AnalysisInput::builder(base.envelope, base.result)
+        .diagnostic_events(events)
+        .build()
 }

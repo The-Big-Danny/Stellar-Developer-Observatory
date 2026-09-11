@@ -18,6 +18,7 @@
 //!
 //! [`AnalysisInput::diagnostics_enabled`]: crate::AnalysisInput::diagnostics_enabled
 
+use crate::contract::ContractErrorReport;
 use crate::diagnosis::CandidateCause;
 use crate::input::AnalysisInput;
 use crate::model::TransactionModel;
@@ -35,6 +36,9 @@ pub struct FailureContext<'a> {
     /// The stage observed from the result, or `Unknown` if it could not be
     /// determined.
     pub stage: FailureStage,
+    /// Contract errors seen in the diagnostic events, with any names resolved
+    /// from contract specs.
+    pub contract_errors: &'a [ContractErrorReport],
 }
 
 /// A single explanation strategy.

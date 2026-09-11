@@ -71,6 +71,89 @@ pub fn load(dir: impl AsRef<Path>) -> Result<DecodedTransaction, FixtureError> {
     Ok(decode_get_transaction(&hash, &raw)?)
 }
 
+/// Contract specs from recorded `getLedgerEntries` responses.
+///
+/// Expects the layout under `fixtures/contracts/`:
+///
+/// ```text
+/// <root>/<CONTRACT_ID>/instance.json   getLedgerEntries result, instance key
+/// <root>/<CONTRACT_ID>/code.json       getLedgerEntries result, code key
+/// ```
+///
+/// Both files are decoded by the same functions as live responses. A contract
+/// with no directory is reported as not found, exactly as an absent ledger
+/// entry would be.
+pub struct FixtureContractSource {
+    root: std::path::PathBuf,
+}
+
+impl FixtureContractSource {
+    /// Read contract fixtures from `root`.
+    pub fn new(root: impl Into<std::path::PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    fn read(path: &Path) -> Result<Value, crate::contract::SourceError> {
+        let bytes = std::fs::read(path).map_err(|e| {
+            crate::contract::SourceError::Lookup(format!("{}: {e}", path.display()))
+        })?;
+        serde_json::from_slice(&bytes).map_err(|e| {
+            crate::contract::SourceError::Malformed(format!("{}: {e}", path.display()))
+        })
+    }
+}
+
+impl crate::contract::ContractSource for FixtureContractSource {
+    fn contract_executable(
+        &self,
+        contract: &stellar_xdr::ContractId,
+    ) -> Result<stellar_xdr::ContractExecutable, crate::contract::SourceError> {
+        let path = self.root.join(contract.to_string()).join("instance.json");
+        if !path.is_file() {
+            return Err(crate::contract::SourceError::NotFound(
+                "contract instance fixture",
+            ));
+        }
+        crate::contract::decode_instance(&Self::read(&path)?)
+    }
+
+    fn contract_wasm(
+        &self,
+        wasm_hash: &stellar_xdr::Hash,
+    ) -> Result<Vec<u8>, crate::contract::SourceError> {
+        use stellar_xdr::WriteXdr;
+
+        // Code is keyed by hash, not contract, so find the recording whose
+        // ledger key is this hash's code key.
+        let wanted = crate::contract::code_key(wasm_hash)
+            .to_xdr_base64(stellar_xdr::Limits::none())
+            .map_err(|e| crate::contract::SourceError::Lookup(e.to_string()))?;
+        let dirs = std::fs::read_dir(&self.root).map_err(|e| {
+            crate::contract::SourceError::Lookup(format!("{}: {e}", self.root.display()))
+        })?;
+        let mut paths: Vec<_> = dirs
+            .filter_map(Result::ok)
+            .map(|d| d.path().join("code.json"))
+            .filter(|p| p.is_file())
+            .collect();
+        paths.sort();
+        for path in paths {
+            let recorded = Self::read(&path)?;
+            let key = recorded
+                .get("entries")
+                .and_then(|e| e.get(0))
+                .and_then(|e| e.get("key"))
+                .and_then(Value::as_str);
+            if key == Some(wanted.as_str()) {
+                return crate::contract::decode_code(&recorded);
+            }
+        }
+        Err(crate::contract::SourceError::NotFound(
+            "contract code fixture",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

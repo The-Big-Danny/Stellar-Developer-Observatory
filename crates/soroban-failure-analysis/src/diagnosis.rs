@@ -8,6 +8,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::contract::ContractErrorReport;
 use crate::taxonomy::{CauseClass, FailureStage};
 
 /// How strongly the evidence supports a candidate cause.
@@ -126,6 +127,13 @@ pub struct Diagnosis {
     pub stage: Option<FailureStage>,
     /// Candidate causes, ranked most-plausible first.
     pub candidate_causes: Vec<CandidateCause>,
+    /// Every contract error code seen in the diagnostic events, with whether
+    /// it could be named (M3). Terminal error first.
+    ///
+    /// This is evidence, not a cause: knowing a contract raised
+    /// `NoHarvestablePails` says *what* it reported, and turning that into a
+    /// ranked explanation is the job of rules.
+    pub contract_errors: Vec<ContractErrorReport>,
     /// Facts the engine could not establish, stated plainly.
     ///
     /// Populated when required inputs were absent — most commonly when
@@ -164,6 +172,7 @@ mod tests {
             transaction_hash: None,
             stage: Some(FailureStage::Unknown),
             candidate_causes: Vec::new(),
+            contract_errors: Vec::new(),
             limitations: vec!["no diagnostic events available".into()],
             rules_evaluated: 0,
         };

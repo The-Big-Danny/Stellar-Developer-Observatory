@@ -13,14 +13,17 @@
 //!
 //! # Status
 //!
-//! **Milestone M2.** [`TransactionModel`] is the canonical view of a
-//! transaction: fee bumps unwrapped, [`FailureStage`] classified, diagnostic
-//! events and the call tree reconstructed, declared and observed resources
-//! kept apart.
+//! **Milestones M2–M3.**
+//!
+//! * [`TransactionModel`] (M2) is the canonical view of a transaction: fee
+//!   bumps unwrapped, [`FailureStage`] classified, diagnostic events and the
+//!   call tree reconstructed, declared and observed resources kept apart.
+//! * [`contract`] (M3) names contract-defined errors from specs the caller
+//!   supplies, and reports explicitly when it cannot.
 //!
 //! **No failure rules are implemented yet.** [`analyze`] runs an empty registry
-//! and returns a [`Diagnosis`] with a stage but no candidate causes, and a
-//! limitation saying so. Rules are milestone M4; see
+//! and returns a [`Diagnosis`] with a stage and contract error names, but no
+//! candidate causes, and a limitation saying so. Rules are milestone M4; see
 //! `ROADMAP.md`.
 //!
 //! This crate would rather return "undetermined" than a guess.
@@ -50,6 +53,7 @@
 
 #![doc(html_root_url = "https://docs.rs/soroban-failure-analysis")]
 
+pub mod contract;
 pub mod diagnosis;
 pub mod input;
 pub mod model;
@@ -80,11 +84,13 @@ pub fn analyze(input: &AnalysisInput) -> Diagnosis {
 pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis {
     let model = TransactionModel::from_input(input);
     let stage = model.stage();
+    let contract_errors = contract::resolve_contract_errors(&model, &input.contract_specs);
 
     let ctx = FailureContext {
         input,
         model: &model,
         stage: stage.unwrap_or(FailureStage::Unknown),
+        contract_errors: &contract_errors,
     };
 
     let mut candidate_causes: Vec<CandidateCause> = registry
@@ -110,6 +116,16 @@ pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis
         limitations.push("The transaction succeeded; there is no failure to analyse.".to_string());
     }
 
+    let unnamed = contract_errors
+        .iter()
+        .filter(|r| r.resolution.name().is_none())
+        .count();
+    if unnamed > 0 {
+        limitations.push(format!(
+            "{unnamed} contract error code(s) could not be named; each report in              `contract_errors` states why."
+        ));
+    }
+
     if !input.diagnostics_enabled {
         limitations.push(
             "Diagnostic events were not available from the source. Their absence \
@@ -122,6 +138,7 @@ pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis
         transaction_hash: input.transaction_hash.clone(),
         stage,
         candidate_causes,
+        contract_errors,
         limitations,
         rules_evaluated: registry.len(),
     }
