@@ -121,8 +121,9 @@ pub struct CandidateCause {
 pub struct Diagnosis {
     /// The transaction hash, hex-encoded, if it was supplied.
     pub transaction_hash: Option<String>,
-    /// Where execution stopped, as observed from the result and metadata.
-    pub stage: FailureStage,
+    /// Where execution stopped, as observed from the result with fee bumps
+    /// unwrapped. `None` means the transaction succeeded.
+    pub stage: Option<FailureStage>,
     /// Candidate causes, ranked most-plausible first.
     pub candidate_causes: Vec<CandidateCause>,
     /// Facts the engine could not establish, stated plainly.
@@ -161,7 +162,7 @@ mod tests {
     fn empty_diagnosis_is_undetermined_and_has_no_top_cause() {
         let d = Diagnosis {
             transaction_hash: None,
-            stage: FailureStage::Unknown,
+            stage: Some(FailureStage::Unknown),
             candidate_causes: Vec::new(),
             limitations: vec!["no diagnostic events available".into()],
             rules_evaluated: 0,

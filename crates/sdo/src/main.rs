@@ -89,7 +89,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             println!("  FAILED");
             println!();
             println!("Failure stage");
-            println!("  {}", diagnosis.stage);
+            match diagnosis.stage {
+                Some(stage) => println!("  {} — {}", stage, stage.description()),
+                None => println!("  none — the transaction succeeded"),
+            }
             println!();
 
             println!("Evidence available");

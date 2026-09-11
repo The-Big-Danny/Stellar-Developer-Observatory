@@ -20,14 +20,20 @@
 
 use crate::diagnosis::CandidateCause;
 use crate::input::AnalysisInput;
+use crate::model::TransactionModel;
 use crate::taxonomy::FailureStage;
 
 /// What a rule is given when it is asked to explain a failure.
 #[derive(Debug, Clone, Copy)]
 pub struct FailureContext<'a> {
-    /// The decoded transaction artifacts.
+    /// The decoded transaction artifacts, verbatim.
     pub input: &'a AnalysisInput,
-    /// The stage observed from the result, if one could be determined.
+    /// The canonical model. Prefer this over `input`: fee bumps are unwrapped,
+    /// events classified, and declared and observed resources kept separate,
+    /// so a rule need not understand raw XDR layout.
+    pub model: &'a TransactionModel,
+    /// The stage observed from the result, or `Unknown` if it could not be
+    /// determined.
     pub stage: FailureStage,
 }
 
