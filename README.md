@@ -7,12 +7,13 @@
 
 > ### ⚠️ Status: early development / experimental
 >
-> **This project cannot yet tell you why your transaction failed.**
+> **This project cannot yet tell you *why* your transaction failed.**
 >
-> Milestones M0 (feasibility) and M1 (foundation) are complete. The engine
-> decodes transactions, structures the evidence, and states what it cannot
-> determine — but **no failure rules are implemented yet** (milestone M4), and
-> failure-stage classification is not implemented yet (milestone M2).
+> Milestones M0–M3 are complete. It can tell you **where** a transaction failed,
+> reconstruct the contract call trace, separate declared resources from what the
+> host actually used, and **name contract-defined errors** from the contracts'
+> own specs. **No failure rules are implemented yet** (milestone M4), so it
+> ranks no causes.
 >
 > Nothing in this README describes a capability that does not exist. See
 > [ROADMAP.md](ROADMAP.md).
@@ -33,9 +34,11 @@ opened by Stellar's own team in 2023, asked for errors that name the missing aut
 entry, the missing footprint entry, and the depleted resource. It was closed
 without a linked implementation.
 
-Our own measurement in [M0](docs/research/m0-report.md) found 10 consecutive
-mainnet Soroban failures reporting one identical result code, with no way to
-distinguish them without reading diagnostic events by hand.
+Our own corpus shows it. Three recorded mainnet failures all report the
+identical result, `Trapped`. Their diagnostic events show one is a storage
+access outside the declared footprint and the other two are a contract's own
+`NoHarvestablePails` error — two unrelated failures that the result code
+cannot tell apart.
 
 ## The approach
 
@@ -55,8 +58,8 @@ website**:
                                   ▼
                     ┌──────────────────────────────┐
                     │ soroban-failure-analysis     │  NO I/O. Pure. Deterministic.
-                    │   stage classifier   (M2)    │
-                    │   error resolver     (M3)    │
+                    │   transaction model  (M2) ✓  │
+                    │   error resolver     (M3) ✓  │
                     │   rule engine        (M4)    │
                     │   ranker                     │
                     └─────────────┬────────────────┘
@@ -117,32 +120,44 @@ cargo test --workspace
 Analyse a committed fixture — no network needed:
 
 ```bash
-cargo run -p sdo -- explain --fixture fixtures/failed/soroban-trapped-feebump-49ev
+cargo run -p sdo -- explain     --fixture fixtures/failed/soroban-trapped-feebump-49ev     --contracts fixtures/contracts
 ```
 
 ```
-Transaction
-  6d597ca6a4d168770b91d89769b8343a6d5ef11d78201c606ffd7caecc3058bc
+Transaction     6d597ca6a4d168770b91d89769b8343a6d5ef11d78201c606ffd7caecc3058bc
+Fee-bumped      yes — fee source GA2JRQOF…, outer result TxFeeBumpInnerFailed
+Result          TxFailed — operation 0: InvokeHostFunction Trapped
+Failure stage   contract_execution — Soroban contract execution trapped
+Diagnostic      49 events (30 execution, 19 core_metrics)
 
-Status
-  FAILED
+Call trace (from diagnostic events)
+  CBGSBK…KKY3::harvest                     failed Error(Contract, #2)
+    CDL74R…IGWA::harvest                   failed Error(Contract, #9)
+    … four more identical inner calls …
 
-Failure stage
-  unknown
+Contract errors
+  Error(Contract, #2)  →  NoHarvestablePails   [terminal]
+      contract    CBGSBKYMYO6OMGHQXXNOBRGVUDFUDVC2XLC3SXON5R2SNXILR7XCKKY3 (only contract to raise it)
+      resolution  from the contract spec (enum Error); WASM 70fe4469… matches the transaction footprint
+      doc         Harvesting all pails results in 0 reward
+  Error(Contract, #9)  →  PailMissing   [raised, then caught or superseded]
+      contract    CDL74RF5BLYR2YBLCCI7F5FB6TPSCLKEJUBSD2RSVWZ4YHF3VMFAIGWA (origin frame of a re-emitted error)
+      resolution  from the contract spec (enum Errors); WASM db2c1429… matches the transaction footprint
 
-Evidence available
-  diagnostic events: 49 (from TopLevel)
-  transaction metadata: present
+Resources               declared        observed
+  CPU instructions      6,732,347       4,345,600
+  resource fee          45,692          29,838 charged …
 
 Candidate causes
-  none — this build cannot yet attribute a cause
-
-Limitations
-  - No failure rules are implemented yet (milestone M4). ...
-  - Failure-stage classification is not implemented yet (milestone M2) ...
+  none — no failure rules are implemented yet (milestone M4)
 ```
 
-That output is the honest current state of the project.
+Every name there comes from the contract's own spec, checked against the WASM
+the transaction actually loaded. Where a name cannot be established, the output
+says `unknown` and gives the reason; it never guesses.
+
+Against the live network, `sdo explain <TX_HASH>` does the same, fetching only
+the contract specs the transaction's errors need.
 
 Measure an RPC endpoint yourself:
 
@@ -163,8 +178,10 @@ providers, 13 of 13 transactions, 437 of 437 events decoded.
   **GO** decision
 - [RPC diagnostic-event availability](docs/research/rpc-diagnostic-events.md) —
   per-provider measurements
-- [Failure taxonomy](docs/research/failure-taxonomy.md) — including the honest
-  finding that our fixture corpus currently covers only one failure category
+- [Failure taxonomy](docs/research/failure-taxonomy.md) — including which
+  failure categories the corpus still has no fixture for
+- [The canonical transaction model](docs/architecture/transaction-model.md) and
+  [contract error resolution](docs/architecture/contract-errors.md)
 
 ## Contributing
 

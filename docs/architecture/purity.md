@@ -72,7 +72,10 @@ Instead, add it to `AnalysisInput` and have `soroban-failure-rpc` populate it.
 `AnalysisInput` is `#[non_exhaustive]` with a builder precisely so that new
 inputs can be added without breaking downstream code.
 
-This is exactly how M3 will work: contract specs are fetched via
-`getLedgerEntries` by the RPC crate, then handed to the engine as data. The
-engine will resolve `Error(Contract, #3)` to a name without ever knowing an RPC
-endpoint exists.
+This is exactly how M3 works. The engine reports which contracts it needs
+(`contracts_needing_specs`), `soroban-failure-rpc` fetches their specs via
+`getLedgerEntries`, and they come back in through
+`AnalysisInput::contract_specs`. The engine resolves `Error(Contract, #2)` to
+`NoHarvestablePails` without ever knowing an RPC endpoint exists — which is also
+why the same resolution runs offline from `fixtures/contracts/`. See
+[contract-errors.md](contract-errors.md).

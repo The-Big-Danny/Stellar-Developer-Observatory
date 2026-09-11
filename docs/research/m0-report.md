@@ -128,6 +128,13 @@ See [`failure-taxonomy.md`](failure-taxonomy.md). Summary of what was *observed*
 | Classic / non-Soroban | 1 |
 | Auth, Footprint, Archival, ResourceLimit, ResourceFee | **0** |
 
+> **Correction, 2026-09-11 (M2).** This table classifies by result code only.
+> Once M2 decoded the diagnostic events, the three Soroban fixtures proved to be
+> one footprint-shaped storage failure and two contract-defined errors, which
+> means real evidence for two categories rather than zero. The table above is left
+> as the original M0 record; see the
+> [taxonomy correction](failure-taxonomy.md#correction-after-m2-2026-09-11).
+
 ## Limitations
 
 What this exercise did **not** establish:
