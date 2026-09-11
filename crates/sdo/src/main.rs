@@ -2,20 +2,23 @@
 //!
 //! # Status
 //!
-//! **Milestone M1 (foundation).** `sdo explain` fetches and decodes a
-//! transaction and reports what it found, but it **cannot yet tell you why the
-//! transaction failed** — no failure rules are implemented (milestone M4) and
-//! failure-stage classification is not implemented (milestone M2).
+//! **Milestones M2–M3.** `sdo explain` shows where a transaction failed, the
+//! contract call trace, declared versus observed resources, and the names of
+//! contract-defined errors resolved from the contracts' own specs.
 //!
-//! The command prints exactly what it knows and exactly what it does not. That
-//! is the point: a diagnostic tool that overstates its confidence is worse than
-//! no tool. See `ROADMAP.md`.
+//! It **cannot yet say why** a transaction failed: no failure rules exist
+//! (milestone M4). It prints what it observed and states plainly what it does
+//! not know. See `ROADMAP.md`.
 
+mod render;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use soroban_failure_analysis::analyze;
-use soroban_failure_rpc::{fixture, RpcClient, TransactionStatus};
+use soroban_failure_analysis::contract::contracts_needing_specs;
+use soroban_failure_analysis::{analyze, TransactionModel};
+use soroban_failure_rpc::{fetch_specs, fixture, FixtureContractSource, RpcClient};
 
 /// Default public Stellar mainnet RPC endpoint.
 const DEFAULT_RPC: &str = "https://mainnet.sorobanrpc.com";
@@ -26,8 +29,8 @@ const DEFAULT_RPC: &str = "https://mainnet.sorobanrpc.com";
     version,
     about = "Explain why a Soroban transaction failed",
     long_about = "Stellar Developer Observatory.\n\n\
-                  EARLY DEVELOPMENT: this build can decode and structure a failed \
-                  transaction, but cannot yet attribute a cause. See ROADMAP.md."
+                  EARLY DEVELOPMENT: this build shows where a transaction failed and \
+                  names contract errors, but cannot yet attribute a cause. See ROADMAP.md."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -47,7 +50,14 @@ enum Command {
 
         /// Analyse a recorded fixture directory instead of querying the network.
         #[arg(long, conflicts_with = "tx")]
-        fixture: Option<std::path::PathBuf>,
+        fixture: Option<PathBuf>,
+
+        /// Directory of recorded contract fixtures to resolve contract error
+        /// names from when using `--fixture` (e.g. `fixtures/contracts`).
+        /// Without it, fixture mode makes no network requests and reports
+        /// contract error names as unavailable.
+        #[arg(long, requires = "fixture")]
+        contracts: Option<PathBuf>,
     },
 }
 
@@ -62,87 +72,33 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
+    let Command::Explain {
+        tx,
+        rpc,
+        fixture,
+        contracts,
+    } = Cli::parse().command;
 
-    match cli.command {
-        Command::Explain { tx, rpc, fixture } => {
-            let decoded = match (&fixture, &tx) {
-                (Some(dir), _) => fixture::load(dir)?,
-                (None, Some(hash)) => RpcClient::new(&rpc).fetch_transaction(hash)?,
-                (None, None) => return Err("provide a transaction hash, or --fixture <dir>".into()),
-            };
-
-            if decoded.status == TransactionStatus::Success {
-                println!("Transaction succeeded. This tool analyses failures.");
-                return Ok(());
-            }
-
-            let diagnosis = analyze(&decoded.input);
-
-            println!("Transaction");
-            println!(
-                "  {}",
-                diagnosis.transaction_hash.as_deref().unwrap_or("<unknown>")
-            );
-            println!();
-            println!("Status");
-            println!("  FAILED");
-            println!();
-            println!("Failure stage");
-            match diagnosis.stage {
-                Some(stage) => println!("  {} — {}", stage, stage.description()),
-                None => println!("  none — the transaction succeeded"),
-            }
-            println!();
-
-            println!("Evidence available");
-            println!(
-                "  diagnostic events: {}",
-                match decoded.diagnostic_source {
-                    Some(src) =>
-                        format!("{} (from {:?})", decoded.input.diagnostic_events.len(), src),
-                    None => "none returned".to_string(),
-                }
-            );
-            println!(
-                "  transaction metadata: {}",
-                if decoded.input.meta.is_some() {
-                    "present"
-                } else {
-                    "absent"
-                }
-            );
-            println!();
-
-            if diagnosis.is_undetermined() {
-                println!("Candidate causes");
-                println!("  none — this build cannot yet attribute a cause");
-            } else {
-                println!("Candidate causes");
-                for (i, c) in diagnosis.candidate_causes.iter().enumerate() {
-                    println!(
-                        "  {}. [{}] {} ({})",
-                        i + 1,
-                        c.confidence.id(),
-                        c.summary,
-                        c.class
-                    );
-                    for ev in &c.evidence {
-                        println!("       evidence: {}", ev.observation);
-                    }
-                    if let Some(r) = &c.remediation {
-                        println!("       next step: {r}");
-                    }
-                }
-            }
-            println!();
-
-            println!("Limitations");
-            for l in &diagnosis.limitations {
-                println!("  - {l}");
-            }
-
-            Ok(())
+    let (decoded, client) = match (&fixture, &tx) {
+        (Some(dir), _) => (fixture::load(dir)?, None),
+        (None, Some(hash)) => {
+            let client = RpcClient::new(&rpc);
+            (client.fetch_transaction(hash)?, Some(client))
         }
-    }
+        (None, None) => return Err("provide a transaction hash, or --fixture <dir>".into()),
+    };
+
+    let model = TransactionModel::from_input(&decoded.input);
+
+    // Fetch only the specs this transaction's contract errors need.
+    let needed = contracts_needing_specs(&model);
+    let specs = match (&client, &contracts) {
+        (Some(client), _) => fetch_specs(client, &needed),
+        (None, Some(dir)) => fetch_specs(&FixtureContractSource::new(dir), &needed),
+        (None, None) => Default::default(),
+    };
+
+    let diagnosis = analyze(&decoded.input.with_contract_specs(specs));
+    print!("{}", render::report(&model, &diagnosis));
+    Ok(())
 }

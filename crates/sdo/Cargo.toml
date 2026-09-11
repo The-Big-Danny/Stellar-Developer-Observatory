@@ -15,11 +15,11 @@ path = "src/main.rs"
 [dependencies]
 soroban-failure-analysis.workspace = true
 soroban-failure-rpc.workspace = true
+stellar-xdr.workspace = true
 clap.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
-stellar-xdr.workspace = true
 
 [lints.rust]
 unsafe_code = "forbid"
