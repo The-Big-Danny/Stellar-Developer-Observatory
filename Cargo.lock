@@ -1017,6 +1017,7 @@ dependencies = [
  "serde_json",
  "soroban-failure-analysis",
  "soroban-failure-rpc",
+ "stellar-xdr",
 ]
 
 [[package]]
