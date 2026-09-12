@@ -7,9 +7,9 @@ is covered by tests. Nothing below is aspirational marketing.
 |---|---|
 | **M0 — Feasibility** | ✅ **Complete** (2026-09-10) |
 | **M1 — Foundation** | ✅ **Complete** (2026-09-10) |
-| M2 — Transaction & XDR engine | ⬜ Planned — next |
-| M3 — Contract error resolution | ⬜ Planned |
-| M4 — Failure classification | ⬜ Planned — **blocked on fixture diversity** |
+| **M2 — Transaction & XDR engine** | ✅ **Complete** (2026-09-11) |
+| **M3 — Contract error resolution** | ✅ **Complete** (2026-09-11) |
+| M4 — Failure classification | ⬜ Planned — next; **two of six categories now have real evidence** |
 | M5 — Accuracy & reliability | ⬜ Planned |
 | M6 — Developer experience | ⬜ Planned |
 | M7 — Ecosystem integration | ⬜ Planned |
@@ -61,49 +61,72 @@ cause.
 
 ---
 
-## ⬜ M2 — Transaction & XDR engine
+## ✅ M2 — Transaction & XDR engine
 
-**Goal:** determine *where* a transaction failed.
+**Goal:** determine *where* a transaction failed, from one canonical model.
 
-- Implement `FailureStage` classification from `TransactionResult`
-- **Unwrap fee-bumped results** — a hard requirement, not an edge case (M0)
-- Reconstruct the contract invocation tree from diagnostic events
-- Extract declared vs. consumed resources, auth entries, and footprint entries
-- Surface all of it through `sdo explain`
+Delivered — see [transaction-model.md](docs/architecture/transaction-model.md):
 
-**Done when:** every fixture reports a correct, non-`Unknown` stage, and the
-`FailureStage` limitation is removed from `analyze`.
+- `TransactionModel`: the single representation every rule works against
+- **Fee-bump unwrapping** of both envelope and result; the wrapper is kept
+  separately rather than mistaken for the cause
+- `FailureStage` classification from the result, per issue #5, with exhaustive
+  matching so a new `stellar-xdr` result code cannot be silently mismapped.
+  Adds `FailureStage::Operation` for classic operation failures, which could
+  previously only be reported as `Unknown`
+- Operations, invocation (contract, function, arguments), auth entries, footprint
+- **Declared** resources kept separate from **observed** consumption
+  (`core_metrics` diagnostic events, and fees charged from the meta)
+- Diagnostic events classified by topic, with the contract **call tree
+  reconstructed** and the terminal error identified
+- `sdo explain` shows all of it
 
-## ⬜ M3 — Contract error resolution
+**Done when** every fixture reports a correct, non-`Unknown` stage and the
+`FailureStage` limitation is gone from `analyze`: ✅ both, asserted by tests.
 
-**Goal:** turn `Error(Contract, #3)` into `InsufficientBalance`.
+M2 also corrected an M0 finding. By result code, the three Soroban fixtures
+were all "`ContractTrap`". By their diagnostic events, one is a storage access
+outside the footprint and two are contract-defined errors — see the
+[taxonomy correction](docs/research/failure-taxonomy.md#correction-after-m2-2026-09-11).
 
-A Soroban contract error arrives as a bare `u32`. The name lives in the
-contract's spec, which is retrievable on-chain. As far as our research found,
-**nobody ships this** — it is the project's sharpest early differentiator.
+## ✅ M3 — Contract error resolution
 
-- Decode `ScError` type/code pairs into human-readable strings
-- Fetch the contract instance and WASM via `getLedgerEntries`
-- Parse the contract spec and map error codes to their declared names
-- Cache specs by WASM hash
+**Goal:** turn `Error(Contract, #3)` into the name the contract declared.
 
-**Done when:** `sdo explain` names a contract-defined error from a real fixture.
+Delivered — see [contract-errors.md](docs/architecture/contract-errors.md):
+
+- Contract identification that handles several contracts and errors re-emitted
+  by callers, reporting ambiguity instead of picking one
+- Contract instance and WASM fetched via `getLedgerEntries`, behind a
+  `ContractSource` trait that also reads recorded fixtures
+- `contractspecv0` parsing with a depth limit, since contract WASM is
+  attacker-deployable
+- **Provenance check:** a spec is only used if its WASM hash is in the
+  transaction's footprint, because contracts can be upgraded after a failure
+- Seven explicit outcomes, from `Resolved` to `NotApplicable`; a name is only
+  ever reported for `Resolved`
+- Each distinct WASM fetched once per analysis; deliberately no persistent cache
+- Two real mainnet contracts recorded under `fixtures/contracts/`
+
+**Done when** `sdo explain` names a contract-defined error from a real
+fixture: ✅ `Error(Contract, #2)` → `NoHarvestablePails`, offline and live.
+
+Known limitation: Stellar Asset Contract errors are not named. The SAC has no
+on-chain spec, and this project only takes names from a spec.
 
 ## ⬜ M4 — Failure classification
 
 **Goal:** the first real rules.
 
-> ### 🚧 Blocked on fixture diversity
+> ### 🚧 Partly blocked on fixture diversity
 >
-> M0 found that **every** Soroban failure in our corpus is
-> `invoke_host_function_trapped` — almost certainly the same arbitrage bots
-> failing repeatedly. Five of the six planned rule categories have **no fixture
-> at all**.
+> After M2 decoded the diagnostic events, the corpus holds real evidence for
+> **two** categories: footprint (the 24-event fixture) and contract-defined
+> errors (both 49-event fixtures). Rules for those two can be written now.
 >
-> Rules cannot be written against a corpus containing one category. Before M4
-> starts, failures must be deliberately produced on testnet and captured:
-> omit an auth entry, truncate a footprint, let an entry expire, under-declare
-> resources, and return a contract error.
+> The other four still have **no fixture**: missing or invalid authorization,
+> archived entry, resource limit exceeded, insufficient resource fee. Those
+> failures must be deliberately produced on testnet and captured.
 >
 > **Any category without a fixture is not implementable.** Tracked in
 > [issue #1](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/1).

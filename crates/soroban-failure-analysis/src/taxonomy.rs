@@ -40,6 +40,13 @@ pub enum FailureStage {
     Sequence,
     /// The inclusion fee (not the Soroban resource fee) was insufficient.
     Fee,
+    /// A classic (non-Soroban) operation ran and returned a failure code, such
+    /// as `payment: underfunded` or `create_claimable_balance: no_trust`.
+    ///
+    /// Added in M2. Before it existed a classic operation failure could only be
+    /// reported as `Unknown`, which was inaccurate: the result *does* identify
+    /// the stage, it just is not a Soroban one.
+    Operation,
     /// The host function itself was malformed — it never entered contract code.
     HostFunction,
     /// Contract code ran and trapped.
@@ -70,6 +77,7 @@ impl FailureStage {
             Self::Validation => "validation",
             Self::Sequence => "sequence",
             Self::Fee => "fee",
+            Self::Operation => "operation",
             Self::HostFunction => "host_function",
             Self::ContractExecution => "contract_execution",
             Self::Auth => "auth",
@@ -78,6 +86,24 @@ impl FailureStage {
             Self::ResourceLimit => "resource_limit",
             Self::ResourceFee => "resource_fee",
             Self::Unknown => "unknown",
+        }
+    }
+
+    /// A one-line human description, for presentation.
+    pub const fn description(self) -> &'static str {
+        match self {
+            Self::Validation => "rejected before any operation ran",
+            Self::Sequence => "sequence number mismatch",
+            Self::Fee => "inclusion fee could not be paid",
+            Self::Operation => "a classic (non-Soroban) operation failed",
+            Self::HostFunction => "Soroban host function was malformed",
+            Self::ContractExecution => "Soroban contract execution trapped",
+            Self::Auth => "Soroban authorization failed",
+            Self::Footprint => "Soroban footprint did not cover an accessed entry",
+            Self::StateArchival => "a required ledger entry was archived",
+            Self::ResourceLimit => "a Soroban resource limit was exceeded",
+            Self::ResourceFee => "the refundable resource fee was insufficient",
+            Self::Unknown => "not determinable from the available data",
         }
     }
 
@@ -179,6 +205,7 @@ mod tests {
             FailureStage::Validation,
             FailureStage::Sequence,
             FailureStage::Fee,
+            FailureStage::Operation,
             FailureStage::HostFunction,
             FailureStage::ContractExecution,
             FailureStage::Auth,
@@ -222,5 +249,6 @@ mod tests {
         assert!(FailureStage::ContractExecution.reached_contract_code());
         assert!(!FailureStage::Validation.reached_contract_code());
         assert!(!FailureStage::Unknown.reached_contract_code());
+        assert!(!FailureStage::Operation.reached_contract_code());
     }
 }

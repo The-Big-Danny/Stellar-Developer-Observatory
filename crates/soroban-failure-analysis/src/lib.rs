@@ -13,10 +13,18 @@
 //!
 //! # Status
 //!
-//! **Milestone M1 (foundation).** The engine, taxonomy, and rule interface are
-//! in place. **No failure rules are implemented yet** — [`analyze`] will run an
-//! empty registry and return a [`Diagnosis`] with no candidate causes and an
-//! explicit limitation saying so. Rules are milestone M4; see `ROADMAP.md`.
+//! **Milestones M2–M3.**
+//!
+//! * [`TransactionModel`] (M2) is the canonical view of a transaction: fee
+//!   bumps unwrapped, [`FailureStage`] classified, diagnostic events and the
+//!   call tree reconstructed, declared and observed resources kept apart.
+//! * [`contract`] (M3) names contract-defined errors from specs the caller
+//!   supplies, and reports explicitly when it cannot.
+//!
+//! **No failure rules are implemented yet.** [`analyze`] runs an empty registry
+//! and returns a [`Diagnosis`] with a stage and contract error names, but no
+//! candidate causes, and a limitation saying so. Rules are milestone M4; see
+//! `ROADMAP.md`.
 //!
 //! This crate would rather return "undetermined" than a guess.
 //!
@@ -45,13 +53,19 @@
 
 #![doc(html_root_url = "https://docs.rs/soroban-failure-analysis")]
 
+pub mod contract;
 pub mod diagnosis;
 pub mod input;
+pub mod model;
 pub mod rule;
 pub mod taxonomy;
 
+#[cfg(test)]
+pub(crate) mod testutil;
+
 pub use diagnosis::{CandidateCause, Confidence, Diagnosis, Evidence, EvidenceSource};
 pub use input::{AnalysisInput, AnalysisInputBuilder};
+pub use model::TransactionModel;
 pub use rule::{FailureContext, Rule, RuleRegistry};
 pub use taxonomy::{CauseClass, FailureStage};
 
@@ -68,12 +82,16 @@ pub fn analyze(input: &AnalysisInput) -> Diagnosis {
 /// Ranking is stable: rules of equal confidence keep their registration order,
 /// so output does not shift between runs.
 pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis {
-    // Stage classification reads the transaction result and is milestone M2.
-    // Until then, report honestly that it is not determined rather than
-    // inventing a stage.
-    let stage = FailureStage::Unknown;
+    let model = TransactionModel::from_input(input);
+    let stage = model.stage();
+    let contract_errors = contract::resolve_contract_errors(&model, &input.contract_specs);
 
-    let ctx = FailureContext { input, stage };
+    let ctx = FailureContext {
+        input,
+        model: &model,
+        stage: stage.unwrap_or(FailureStage::Unknown),
+        contract_errors: &contract_errors,
+    };
 
     let mut candidate_causes: Vec<CandidateCause> = registry
         .iter()
@@ -94,11 +112,19 @@ pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis
         );
     }
 
-    limitations.push(
-        "Failure-stage classification is not implemented yet (milestone M2); \
-         stage is reported as `unknown`."
-            .to_string(),
-    );
+    if stage.is_none() {
+        limitations.push("The transaction succeeded; there is no failure to analyse.".to_string());
+    }
+
+    let unnamed = contract_errors
+        .iter()
+        .filter(|r| r.resolution.name().is_none())
+        .count();
+    if unnamed > 0 {
+        limitations.push(format!(
+            "{unnamed} contract error code(s) could not be named; each report in              `contract_errors` states why."
+        ));
+    }
 
     if !input.diagnostics_enabled {
         limitations.push(
@@ -112,6 +138,7 @@ pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis
         transaction_hash: input.transaction_hash.clone(),
         stage,
         candidate_causes,
+        contract_errors,
         limitations,
         rules_evaluated: registry.len(),
     }
@@ -120,44 +147,17 @@ pub fn analyze_with(input: &AnalysisInput, registry: &RuleRegistry) -> Diagnosis
 #[cfg(test)]
 mod tests {
     use super::*;
-    use stellar_xdr::{
-        Limits, Memo, MuxedAccount, Operation, Preconditions, ReadXdr, SequenceNumber, Transaction,
-        TransactionEnvelope, TransactionExt, TransactionResult, TransactionResultExt,
-        TransactionResultResult, TransactionV1Envelope, Uint256, WriteXdr,
-    };
-
-    /// A minimal, structurally valid envelope/result pair.
-    ///
-    /// Built in code rather than pasted as base64 so the test stays readable and
-    /// does not silently depend on an opaque blob.
-    fn minimal_input() -> AnalysisInput {
-        let tx = Transaction {
-            source_account: MuxedAccount::Ed25519(Uint256([0; 32])),
-            fee: 100,
-            seq_num: SequenceNumber(1),
-            cond: Preconditions::None,
-            memo: Memo::None,
-            operations: Vec::<Operation>::new().try_into().unwrap(),
-            ext: TransactionExt::V0,
-        };
-        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
-            tx,
-            signatures: Vec::new().try_into().unwrap(),
-        });
-        let result = TransactionResult {
-            fee_charged: 100,
-            result: TransactionResultResult::TxFailed(Vec::new().try_into().unwrap()),
-            ext: TransactionResultExt::V0,
-        };
-        AnalysisInput::builder(envelope, result).build()
-    }
+    use crate::testutil::minimal_input;
+    use stellar_xdr::{Limits, ReadXdr, TransactionEnvelope, WriteXdr};
 
     #[test]
     fn analyze_is_undetermined_with_no_rules() {
         let diagnosis = analyze(&minimal_input());
         assert!(diagnosis.is_undetermined());
         assert_eq!(diagnosis.rules_evaluated, 0);
-        assert_eq!(diagnosis.stage, FailureStage::Unknown);
+        // TxFailed with no failing operation: failed, but the stage is not
+        // determinable. Not `None`, which would claim success.
+        assert_eq!(diagnosis.stage, Some(FailureStage::Unknown));
     }
 
     #[test]

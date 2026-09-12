@@ -35,6 +35,7 @@ Grounded in the XDR. `InvokeHostFunctionResult` has exactly six arms — `Succes
 | `Validation` | `tx_malformed`, `tx_bad_auth`, `tx_soroban_invalid`, `op_bad_auth` | no |
 | `Sequence` | `tx_bad_seq`, `tx_bad_min_seq_age_or_gap` | no |
 | `Fee` | `tx_insufficient_fee` (inclusion fee, not resource fee) | no |
+| `Operation` | a classic operation's failure code, e.g. `CreateClaimableBalance: NoTrust` *(added in M2)* | no |
 | `HostFunction` | `invoke_host_function_malformed` | no |
 | `ContractExecution` | `invoke_host_function_trapped` | yes |
 | `Auth` | trap with authorization evidence in diagnostic events | yes |
@@ -43,6 +44,9 @@ Grounded in the XDR. `InvokeHostFunctionResult` has exactly six arms — `Succes
 | `ResourceLimit` | `invoke_host_function_resource_limit_exceeded` | yes |
 | `ResourceFee` | `invoke_host_function_insufficient_refundable_fee` | — |
 | `Unknown` | anything else, or insufficient data | — |
+
+The full mapping as implemented, with the reasoning for each edge case, is in
+[`docs/architecture/transaction-model.md`](../architecture/transaction-model.md).
 
 `Auth` and `Footprint` are the two stages **not** directly readable from a result
 code. Both surface as a generic `Trapped`, and separating them requires reading
@@ -95,9 +99,39 @@ certainly the same arbitrage bots failing repeatedly.
    transactions, one result code, and no way to tell them apart without reading
    diagnostic events. This is direct evidence for the problem statement.
 
+### Correction after M2 (2026-09-11)
+
+The table above classified transactions by **result code**, which was all M0
+could read. M2 decodes the diagnostic events, and they tell a different story
+about the three Soroban fixtures. The M0 observation is left as written above;
+this is what the events show:
+
+| Fixture | Result code | What the diagnostic events show |
+|---|---|---|
+| `soroban-trapped-feebump-24ev` | `Trapped` | Terminal `Error(Storage, ExceededLimit)`, host message *"trying to access contract data key outside of the footprint"* |
+| `soroban-trapped-feebump-49ev` | `Trapped` | Terminal `Error(Contract, #2)` = `NoHarvestablePails`, after five caught `Error(Contract, #9)` = `PailMissing` |
+| `soroban-trapped-feebump-49ev-alt` | `Trapped` | Same shape as `-49ev` |
+
+So the corpus holds real **evidence** for two cause categories, not zero:
+
+- **`FootprintEntryMissing`** — the 24-event fixture. The host's message is
+  consistent with it. Confirming the classification, and naming the key, is a
+  rule's job; M2 only exposes the evidence.
+- **`ContractDefinedError`** — both 49-event fixtures, now resolved to names
+  from the contracts' real specs by M3.
+
+Three identical `Trapped` results turned out to be two different kinds of
+failure. That is the problem this project exists to solve, now observed
+directly in its own corpus.
+
+Still with **no** fixture: missing or invalid authorization, archived entry,
+resource limit exceeded, insufficient resource fee.
+
 ### Consequence for M4
 
-Rules cannot be written against a corpus that contains one category. Before M4:
+After the M2 correction the corpus supports rules for two categories, footprint
+and contract-defined errors. The other four still need fixtures. Before those
+rules can be written:
 
 - Deliberately **produce** failures on testnet — omit an auth entry, truncate a
   footprint, let an entry expire, under-declare resources — and capture each.

@@ -80,7 +80,10 @@ fn every_fixture_can_be_analysed_without_panicking() {
         let decoded = fixture::load(&dir).unwrap();
         let diagnosis = analyze(&decoded.input);
 
-        assert_eq!(diagnosis.stage, FailureStage::Unknown, "M2 is not done yet");
+        assert!(
+            matches!(diagnosis.stage, Some(s) if s != FailureStage::Unknown),
+            "M2 classifies every fixture's stage"
+        );
         assert!(
             diagnosis.is_undetermined(),
             "no rules ship before M4, so {} must be undetermined",

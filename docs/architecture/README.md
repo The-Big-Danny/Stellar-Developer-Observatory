@@ -3,33 +3,46 @@
 ## Shape
 
 ```
-                     ┌──────────────────────────────┐
-  Stellar RPC ─────► │  soroban-failure-rpc         │
-  getTransaction     │                              │
-  getLedgerEntries   │   client.rs   ← the only     │
-                     │               networking     │
-                     │   decode.rs   ← pure         │
-                     │   fixture.rs  ← pure         │
-                     └─────────────┬────────────────┘
-                                   │  AnalysisInput (typed, decoded)
-                                   ▼
-                     ┌──────────────────────────────┐
-                     │ soroban-failure-analysis     │
-                     │                              │
-                     │   taxonomy.rs  stage + cause │
-                     │   input.rs     the boundary  │
-                     │   rule.rs      Rule trait    │
-                     │   diagnosis.rs the output    │
-                     │   lib.rs       ranking       │
-                     │                              │
-                     │   NO I/O. Deterministic.     │
-                     └─────────────┬────────────────┘
+                     ┌─────────────────────────────────────┐
+  Stellar RPC ─────► │  soroban-failure-rpc                │
+  getTransaction     │   client.rs    ← networking         │
+  getLedgerEntries   │   contract.rs  ← ContractSource,    │
+                     │                  fetch_specs (M3)   │
+                     │   decode.rs    ← pure               │
+                     │   fixture.rs   ← recorded responses │
+                     └───────┬───────────────────▲─────────┘
+       AnalysisInput         │                   │ contracts_needing_specs()
+       (+ contract specs)    ▼                   │
+                     ┌───────────────────────────┴─────────┐
+                     │ soroban-failure-analysis            │
+                     │                                     │
+                     │   model/     TransactionModel (M2)  │
+                     │     envelope  fee bumps, operations │
+                     │     outcome   result → FailureStage │
+                     │     soroban   auth, footprint,      │
+                     │               declared / observed   │
+                     │     events    diagnostics, calls    │
+                     │   contract/  error resolution (M3)  │
+                     │     wasm      contractspecv0 reader │
+                     │     spec      error enums           │
+                     │     resolve   identify, verify, name│
+                     │   rule.rs    Rule trait (M4: empty) │
+                     │                                     │
+                     │   NO I/O. Deterministic.            │
+                     └─────────────┬───────────────────────┘
                                    │  Diagnosis
                      ┌─────────────┴────────────────┐
                      ▼                              ▼
                  sdo CLI                     other consumers
                                       (CI, explorers, a future UI)
 ```
+
+- **[The canonical transaction model](transaction-model.md)** — fee-bump
+  unwrapping, `FailureStage` classification, diagnostic events and the call
+  tree, declared versus observed resources. Milestone M2.
+- **[Contract error resolution](contract-errors.md)** — turning
+  `Error(Contract, #2)` into `NoHarvestablePails` from the contract's own
+  spec, and every honest way that can fail. Milestone M3.
 
 ## The four decisions that matter
 
@@ -84,9 +97,10 @@ configuration, so their absence genuinely can be meaningless.
 ```
 Diagnosis {
     transaction_hash,
-    stage:            FailureStage,            // observed
-    candidate_causes: Vec<CandidateCause>,     // ranked, strongest confidence first
-    limitations:      Vec<String>,             // what could NOT be determined
+    stage:            Option<FailureStage>,     // observed; None = succeeded (M2)
+    candidate_causes: Vec<CandidateCause>,      // ranked, strongest confidence first (M4)
+    contract_errors:  Vec<ContractErrorReport>, // named from contract specs (M3)
+    limitations:      Vec<String>,              // what could NOT be determined
     rules_evaluated:  usize,
 }
 ```
@@ -104,7 +118,7 @@ runs.
 | Layer | Where | Network? |
 |---|---|---|
 | Unit | alongside each module | never |
-| Fixture / integration | `crates/sdo/tests/fixtures.rs` | never |
+| Fixture / integration | `crates/sdo/tests/` — corpus guards, transaction model, contract resolution | never |
 | Live measurement | `tools/rpc-probe`, run by hand | yes — that is its purpose |
 
 Integration tests also guard the corpus itself: required files, hash consistency
@@ -116,6 +130,8 @@ CI never contacts an RPC provider. A test that needs the network is a bug.
 ## Further reading
 
 - [The purity rule](purity.md)
+- [The canonical transaction model](transaction-model.md)
+- [Contract error resolution](contract-errors.md)
 - [Failure taxonomy](../research/failure-taxonomy.md)
 - [M0 feasibility report](../research/m0-report.md)
 - [Pre-build validation](../research/00-validation.md) — why library-first
