@@ -167,4 +167,9 @@ A new category needs, in one PR:
 2. A row in this table.
 3. **A real fixture exhibiting it.** Not a hypothetical.
 
-If you cannot produce a fixture, the category is not ready.
+If you cannot produce a fixture, the category is not ready. The one narrow
+exception, adopted in M4, is for *rules*: a rule whose only evidence is a
+protocol result code defined as that exact cause may ship with synthetic tests,
+marked unvalidated — see [ROADMAP.md](../../ROADMAP.md). It does not relax the
+fixture requirement for adding a category, or for rules that interpret
+diagnostic events.

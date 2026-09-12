@@ -6,9 +6,12 @@
 //! contract call trace, declared versus observed resources, and the names of
 //! contract-defined errors resolved from the contracts' own specs.
 //!
-//! It **cannot yet say why** a transaction failed: no failure rules exist
-//! (milestone M4). It prints what it observed and states plainly what it does
-//! not know. See `ROADMAP.md`.
+//! **M4 (partly complete)** adds ranked, evidence-backed candidate causes. Rules
+//! validated on real data cover contract-defined errors, missing footprint
+//! entries and invalid authorization; three result-code rules are validated
+//! only synthetically, and missing authorization has no rule. When no rule
+//! finds enough evidence, the command says the cause is unknown rather than
+//! guessing. See `docs/architecture/rules.md` and `ROADMAP.md`.
 
 mod render;
 
@@ -29,8 +32,10 @@ const DEFAULT_RPC: &str = "https://mainnet.sorobanrpc.com";
     version,
     about = "Explain why a Soroban transaction failed",
     long_about = "Stellar Developer Observatory.\n\n\
-                  EARLY DEVELOPMENT: this build shows where a transaction failed and \
-                  names contract errors, but cannot yet attribute a cause. See ROADMAP.md."
+                  EARLY DEVELOPMENT: this build shows where a transaction failed, names \
+                  contract errors, and ranks evidence-backed causes for the failure \
+                  categories it has rules for. Otherwise it says the cause is unknown. \
+                  See docs/architecture/rules.md."
 )]
 struct Cli {
     #[command(subcommand)]
