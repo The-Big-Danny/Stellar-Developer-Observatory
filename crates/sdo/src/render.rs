@@ -10,7 +10,7 @@ use soroban_failure_analysis::contract::{
     SpecProvenance,
 };
 use soroban_failure_analysis::model::{error_label, CallOutcome, OperationKind};
-use soroban_failure_analysis::{Diagnosis, TransactionModel};
+use soroban_failure_analysis::{Diagnosis, EvidenceSource, RuleStatus, TransactionModel, Verdict};
 use stellar_xdr::ContractId;
 
 fn short(id: &ContractId) -> String {
@@ -94,6 +94,15 @@ fn summary(s: &mut String, m: &TransactionModel, d: &Diagnosis) {
             let _ = writeln!(s, "Failure stage   none — the transaction succeeded");
         }
     }
+    let cause = match (d.verdict(), d.top_cause()) {
+        (Verdict::Explained(confidence), Some(top)) => {
+            format!("{} ({})", top.class, confidence.id())
+        }
+        (Verdict::InsufficientEvidence, _) => "unknown — not enough evidence to name one".into(),
+        (Verdict::Unsupported, _) => "unsupported — no rule covers this kind of failure".into(),
+        _ => "none".into(),
+    };
+    let _ = writeln!(s, "Likely cause    {cause}");
 
     let events = &m.diagnostics.events;
     let metrics = events.len() - m.diagnostics.execution_event_count();
@@ -331,27 +340,80 @@ fn resources(s: &mut String, m: &TransactionModel) {
     );
 }
 
+fn source_label(source: &EvidenceSource) -> String {
+    match source {
+        EvidenceSource::TransactionResult => "transaction result".into(),
+        EvidenceSource::OperationResult { index } => format!("operation result {index}"),
+        EvidenceSource::DiagnosticEvent { index } => format!("event {index}"),
+        EvidenceSource::AuthorizationEntry { index } => format!("auth entry {index}"),
+        EvidenceSource::FootprintEntry { read_write, index } => format!(
+            "footprint {} {index}",
+            if *read_write {
+                "read-write"
+            } else {
+                "read-only"
+            }
+        ),
+        EvidenceSource::SorobanResources => "declared resources".into(),
+        EvidenceSource::ContractSpec => "contract spec".into(),
+        EvidenceSource::Footprint => "footprint".into(),
+        EvidenceSource::ObservedResources => "observed resources".into(),
+        _ => "other".into(),
+    }
+}
+
 fn causes(s: &mut String, d: &Diagnosis) {
-    let _ = writeln!(s, "\nCandidate causes");
-    if d.is_undetermined() {
-        let _ = writeln!(
-            s,
-            "  none — no failure rules are implemented yet (milestone M4)"
-        );
-    } else {
-        for (i, c) in d.candidate_causes.iter().enumerate() {
+    let _ = writeln!(s, "\nDiagnosis");
+    let verdict = match d.verdict() {
+        Verdict::NotAFailure => "not a failure — the transaction succeeded".to_string(),
+        Verdict::Explained(c) => format!("explained — the top cause is {}", c.id()),
+        Verdict::InsufficientEvidence => {
+            "unknown — no rule found enough evidence to name a cause".to_string()
+        }
+        Verdict::Unsupported => {
+            "unsupported — no implemented rule covers this kind of failure".to_string()
+        }
+    };
+    let _ = writeln!(s, "  verdict: {verdict}");
+
+    for (i, c) in d.candidate_causes.iter().enumerate() {
+        let _ = writeln!(s, "\n  {}. {} [{}]", i + 1, c.class, c.confidence.id());
+        let _ = writeln!(s, "     {}", c.summary);
+        let _ = writeln!(s, "     evidence:");
+        for e in &c.evidence {
             let _ = writeln!(
                 s,
-                "  {}. [{}] {} ({})",
-                i + 1,
-                c.confidence.id(),
-                c.summary,
-                c.class
+                "       - {} ({})",
+                e.observation,
+                source_label(&e.source)
+            );
+        }
+        if let Some(r) = &c.remediation {
+            let _ = writeln!(s, "     next step: {r}");
+        }
+        let _ = writeln!(s, "     rule: {}", c.rule_id);
+    }
+
+    let unproven: Vec<_> = d
+        .rule_reports
+        .iter()
+        .filter(|r| r.status == RuleStatus::NoEvidence)
+        .collect();
+    if !unproven.is_empty() {
+        let _ = writeln!(s, "\n  Rules that could apply but found no evidence");
+        for r in unproven {
+            let _ = writeln!(
+                s,
+                "  - {}: {}",
+                r.rule_id,
+                r.reason.as_deref().unwrap_or("no reason given")
             );
         }
     }
-    let _ = writeln!(s, "\nLimitations");
-    for l in &d.limitations {
-        let _ = writeln!(s, "  - {l}");
+    if !d.limitations.is_empty() {
+        let _ = writeln!(s, "\nLimitations");
+        for l in &d.limitations {
+            let _ = writeln!(s, "  - {l}");
+        }
     }
 }
