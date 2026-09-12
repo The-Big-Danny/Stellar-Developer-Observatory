@@ -127,20 +127,37 @@ directly in its own corpus.
 Still with **no** fixture: missing or invalid authorization, archived entry,
 resource limit exceeded, insufficient resource fee.
 
-### Consequence for M4
+### After M4 (2026-09-12)
 
-After the M2 correction the corpus supports rules for two categories, footprint
-and contract-defined errors. The other four still need fixtures. Before those
-rules can be written:
+A spread-out survey of 18,000 mainnet transactions (`survey_failures`) found
+219 failed Soroban transactions in four shapes, and two new real authorization
+failures were captured as fixtures:
 
-- Deliberately **produce** failures on testnet — omit an auth entry, truncate a
-  footprint, let an entry expire, under-declare resources — and capture each.
-- Widen mainnet sampling across many separated ledger ranges rather than
-  consecutive ones, and deduplicate by contract ID.
-- Treat any category with no fixture as **not implementable**. A rule without a
-  fixture is untested by construction.
+| Count | Terminal error | Category | Rule |
+|---|---|---|---|
+| 175 | `Error(Storage, ExceededLimit)`, "outside of the footprint" | `FootprintEntryMissing` | `footprint_entry_missing` |
+| 37 | `Error(Contract, #N)` | `ContractDefinedError` | `contract_defined_error` |
+| 4 | `Error(Auth, InvalidInput)`, "signature has expired" | `InvalidAuthorizationEntry` | `invalid_authorization_entry` |
+| 3 | `Error(Auth, ExistingValue)`, "nonce already exists for address" | `InvalidAuthorizationEntry` | `invalid_authorization_entry` |
 
-This is tracked as a blocking prerequisite in [`ROADMAP.md`](../../ROADMAP.md).
+Real fixtures per category now:
+
+| Category | Real fixtures |
+|---|---|
+| `ContractDefinedError` | 2 |
+| `FootprintEntryMissing` | 1 |
+| `InvalidAuthorizationEntry` | 2 |
+| `ArchivedEntryRequiresRestore` | **0** — rule validated synthetically only |
+| `ResourceLimitExceeded` | **0** — rule validated synthetically only |
+| `InsufficientResourceFee` | **0** — rule validated synthetically only |
+| `MissingAuthorizationEntry` | **0** — no rule |
+
+The survey found no `EntryArchived`, `ResourceLimitExceeded` or
+`InsufficientRefundableFee` results at all, most likely because simulation stops
+such transactions before submission. Those fixtures still have to be produced
+deliberately on testnet; that work is tracked in
+[issue #1](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/1).
+See [`docs/architecture/rules.md`](../architecture/rules.md).
 
 ## Adding to this taxonomy
 

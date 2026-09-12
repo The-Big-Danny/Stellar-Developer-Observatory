@@ -26,7 +26,7 @@
                      │     wasm      contractspecv0 reader │
                      │     spec      error enums           │
                      │     resolve   identify, verify, name│
-                     │   rule.rs    Rule trait (M4: empty) │
+                     │   rules/     failure rules (M4)     │
                      │                                     │
                      │   NO I/O. Deterministic.            │
                      └─────────────┬───────────────────────┘
@@ -43,6 +43,9 @@
 - **[Contract error resolution](contract-errors.md)** — turning
   `Error(Contract, #2)` into `NoHarvestablePails` from the contract's own
   spec, and every honest way that can fail. Milestone M3.
+- **[Failure classification rules](rules.md)** — the six rules, the evidence
+  each requires, confidence levels, verdicts, and the categories with no rule
+  or no real fixture yet. Milestone M4.
 
 ## The four decisions that matter
 
@@ -62,7 +65,9 @@ Adding a failure mode is therefore **one file, one fixture, one test** — not a
 change to a growing central `match` that every contributor has to understand and
 that every PR conflicts on. This is the contributor pipeline expressed in code.
 
-The registry currently ships **empty**. Rules are milestone M4.
+The registry ships six rules. Each returns a match, "no evidence" or "not
+applicable", always with a reason when it does not match. What each requires is
+in [rules.md](rules.md).
 
 ### 3. Stage is observed; cause is claimed
 
@@ -100,6 +105,7 @@ Diagnosis {
     stage:            Option<FailureStage>,     // observed; None = succeeded (M2)
     candidate_causes: Vec<CandidateCause>,      // ranked, strongest confidence first (M4)
     contract_errors:  Vec<ContractErrorReport>, // named from contract specs (M3)
+    rule_reports:     Vec<RuleReport>,          // every rule's outcome and reason (M4)
     limitations:      Vec<String>,              // what could NOT be determined
     rules_evaluated:  usize,
 }
@@ -107,7 +113,8 @@ Diagnosis {
 
 `limitations` is not decoration. A diagnostic tool that degrades silently is
 worse than one that refuses, so the engine always states what it could not do —
-including, right now, that it has no rules.
+including when no rule found enough evidence. `Diagnosis::verdict()` turns that
+into one answer: explained, unknown for lack of evidence, or unsupported.
 
 Ranking is stable: `sort_by_key` with `Reverse(confidence)` preserves
 registration order within a confidence band, so output does not shift between
@@ -132,6 +139,7 @@ CI never contacts an RPC provider. A test that needs the network is a bug.
 - [The purity rule](purity.md)
 - [The canonical transaction model](transaction-model.md)
 - [Contract error resolution](contract-errors.md)
+- [Failure classification rules](rules.md)
 - [Failure taxonomy](../research/failure-taxonomy.md)
 - [M0 feasibility report](../research/m0-report.md)
 - [Pre-build validation](../research/00-validation.md) — why library-first
