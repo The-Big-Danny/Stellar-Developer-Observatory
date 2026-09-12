@@ -85,13 +85,16 @@ fn every_fixture_can_be_analysed_without_panicking() {
             "M2 classifies every fixture's stage"
         );
         assert!(
-            diagnosis.is_undetermined(),
-            "no rules ship before M4, so {} must be undetermined",
+            diagnosis
+                .candidate_causes
+                .iter()
+                .all(|c| !c.evidence.is_empty()),
+            "{}: M4 must never produce a cause without evidence",
             dir.display()
         );
         assert!(
-            !diagnosis.limitations.is_empty(),
-            "{} produced no limitations; the engine must always disclose what it could not do",
+            !diagnosis.is_undetermined() || !diagnosis.limitations.is_empty(),
+            "{} is unexplained yet produced no limitations; an unexplained failure must say why",
             dir.display()
         );
     }

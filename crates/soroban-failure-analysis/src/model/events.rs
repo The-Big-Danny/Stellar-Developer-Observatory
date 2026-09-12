@@ -231,6 +231,80 @@ pub fn error_label(error: &ScError) -> String {
     format!("Error({}, {})", error.name(), code.name())
 }
 
+/// Render an `ScVal` compactly for evidence text, e.g. `vec[Block, 183188]`.
+///
+/// Bounded in depth, width and text length: values come from untrusted
+/// transaction data, and evidence must stay readable whatever they contain.
+pub fn value_label(v: &ScVal) -> String {
+    let mut out = String::new();
+    write_value(&mut out, v, 0);
+    out
+}
+
+const LABEL_MAX_DEPTH: usize = 3;
+const LABEL_MAX_ITEMS: usize = 8;
+const LABEL_MAX_TEXT: usize = 64;
+
+fn clipped(s: &str) -> String {
+    if s.chars().count() <= LABEL_MAX_TEXT {
+        s.to_string()
+    } else {
+        format!("{}…", s.chars().take(LABEL_MAX_TEXT).collect::<String>())
+    }
+}
+
+fn write_value(out: &mut String, v: &ScVal, depth: usize) {
+    use core::fmt::Write;
+    let _ = match v {
+        ScVal::Bool(b) => write!(out, "{b}"),
+        ScVal::Void => write!(out, "void"),
+        ScVal::U32(n) => write!(out, "{n}"),
+        ScVal::I32(n) => write!(out, "{n}"),
+        ScVal::U64(n) => write!(out, "{n}"),
+        ScVal::I64(n) => write!(out, "{n}"),
+        ScVal::Symbol(s) => write!(out, "{}", clipped(&s.0.to_utf8_string_lossy())),
+        ScVal::String(s) => write!(out, "\"{}\"", clipped(&s.0.to_utf8_string_lossy())),
+        ScVal::Bytes(b) => {
+            let hex: String = b.iter().take(8).map(|x| format!("{x:02x}")).collect();
+            let more = if b.len() > 8 { "…" } else { "" };
+            write!(out, "0x{hex}{more} ({} bytes)", b.len())
+        }
+        ScVal::Address(a) => write!(out, "{a}"),
+        ScVal::Error(e) => write!(out, "{}", error_label(e)),
+        ScVal::Vec(Some(items)) if depth < LABEL_MAX_DEPTH => {
+            out.push_str("vec[");
+            for (i, item) in items.iter().take(LABEL_MAX_ITEMS).enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_value(out, item, depth + 1);
+            }
+            if items.len() > LABEL_MAX_ITEMS {
+                out.push_str(", …");
+            }
+            write!(out, "]")
+        }
+        ScVal::Map(Some(entries)) if depth < LABEL_MAX_DEPTH => {
+            out.push_str("map{");
+            for (i, e) in entries.iter().take(LABEL_MAX_ITEMS).enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_value(out, &e.key, depth + 1);
+                out.push_str(": ");
+                write_value(out, &e.val, depth + 1);
+            }
+            if entries.len() > LABEL_MAX_ITEMS {
+                out.push_str(", …");
+            }
+            write!(out, "}}")
+        }
+        ScVal::Vec(Some(_)) => write!(out, "vec[…]"),
+        ScVal::Map(Some(_)) => write!(out, "map{{…}}"),
+        other => write!(out, "<{}>", other.name()),
+    };
+}
+
 fn symbol(v: &ScVal) -> Option<String> {
     match v {
         ScVal::Symbol(s) => Some(s.0.to_utf8_string_lossy()),

@@ -272,14 +272,13 @@ fn a_transaction_with_no_diagnostic_events_is_not_read_as_having_none() {
 // ---- end to end --------------------------------------------------------------
 
 #[test]
-fn analyze_reports_the_stage_and_still_claims_no_cause() {
+fn analyze_reports_the_stage_from_the_model() {
+    // Causes are M4's job; see `classification.rs`.
     for (name, stage) in [
         (FEE_BUMP_24, FailureStage::ContractExecution),
         (FEE_BUMP_49, FailureStage::ContractExecution),
         (CLASSIC, FailureStage::Operation),
     ] {
-        let d = analyze(&input(name));
-        assert_eq!(d.stage, Some(stage), "{name}");
-        assert!(d.is_undetermined(), "{name}: M4 is not implemented");
+        assert_eq!(analyze(&input(name)).stage, Some(stage), "{name}");
     }
 }
