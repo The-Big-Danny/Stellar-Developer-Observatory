@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "01285524f481e3b14f4ba1dad3a6e6360e2feabd3882847a53678a34a3171b9f",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64358921,
+  "captured_at": "2026-09-10T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "ContractTrap",
+  "fee_bumped": true,
+  "diagnostic_event_count": 49,
+  "purpose": "A third trapped fee-bumped failure from a different ledger again. Present so that a rule cannot pass by memorising one transaction."
+}

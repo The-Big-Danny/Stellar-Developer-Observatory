@@ -48,7 +48,12 @@ fn the_corpus_is_not_empty() {
 #[test]
 fn every_fixture_has_the_required_files() {
     for dir in failed_fixtures() {
-        for required in ["rpc-response.json", "probe.json", "README.md"] {
+        for required in [
+            "rpc-response.json",
+            "probe.json",
+            "README.md",
+            "metadata.json",
+        ] {
             assert!(
                 dir.join(required).is_file(),
                 "{} is missing {required}",
@@ -203,4 +208,131 @@ fn probe_reports_agree_with_a_fresh_decode() {
             dir.display()
         );
     }
+}
+
+#[test]
+fn every_fixture_has_valid_metadata() {
+    for dir in failed_fixtures() {
+        let path = dir.join("metadata.json");
+        let metadata: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap())
+                .unwrap_or_else(|e| panic!("{} is invalid JSON: {e}", path.display()));
+
+        let object = metadata
+            .as_object()
+            .unwrap_or_else(|| panic!("{} must contain a JSON object", path.display()));
+
+        let required = [
+            "transaction_hash",
+            "network",
+            "ledger",
+            "captured_at",
+            "rpc_provider",
+            "failure_category",
+            "fee_bumped",
+            "diagnostic_event_count",
+            "purpose",
+        ];
+
+        for field in required {
+            assert!(
+                object.contains_key(field),
+                "{} is missing metadata field {field}",
+                path.display()
+            );
+        }
+
+        assert!(object["transaction_hash"].is_string());
+        assert!(object["network"].is_string());
+        assert!(object["ledger"].is_u64());
+        assert!(object["captured_at"].is_string());
+        assert!(object["rpc_provider"].is_string());
+        assert!(object["failure_category"].is_string());
+        assert!(object["fee_bumped"].is_boolean());
+        assert!(object["diagnostic_event_count"].is_u64());
+        assert!(object["purpose"].is_string());
+    }
+}
+
+fn validate_metadata_claims(
+    metadata: &serde_json::Value,
+    probe: &serde_json::Value,
+    rpc: &serde_json::Value,
+) -> Result<(), String> {
+    if metadata["transaction_hash"] != probe["transaction"] {
+        return Err("transaction_hash does not match probe transaction".to_string());
+    }
+
+    if metadata["transaction_hash"] != rpc["txHash"] {
+        return Err("transaction_hash does not match recorded RPC response".to_string());
+    }
+
+    if metadata["ledger"] != probe["ledger"] {
+        return Err("ledger does not match probe ledger".to_string());
+    }
+
+    if metadata["ledger"] != rpc["ledger"] {
+        return Err("ledger does not match recorded RPC response".to_string());
+    }
+
+    if metadata["diagnostic_event_count"] != probe["diagnostic_events"]["count"] {
+        return Err("diagnostic_event_count does not match probe report".to_string());
+    }
+
+    Ok(())
+}
+
+#[test]
+fn metadata_claims_match_recorded_response() {
+    for dir in failed_fixtures() {
+        let metadata: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("metadata.json")).unwrap())
+                .unwrap();
+
+        let probe: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("probe.json")).unwrap())
+                .unwrap();
+
+        let rpc: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("rpc-response.json")).unwrap())
+                .unwrap();
+        validate_metadata_claims(&metadata, &probe, &rpc)
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    }
+}
+
+#[test]
+fn deliberately_mismatched_metadata_fails_validation() {
+    let dir = failed_fixtures()
+        .into_iter()
+        .next()
+        .expect("fixture corpus should not be empty");
+
+    let mut metadata: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("metadata.json")).unwrap()).unwrap();
+
+    metadata["transaction_hash"] = serde_json::Value::String("deliberately-wrong-hash".to_string());
+
+    let probe: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("probe.json")).unwrap()).unwrap();
+
+    let rpc: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("rpc-response.json")).unwrap())
+            .unwrap();
+
+    let error = validate_metadata_claims(&metadata, &probe, &rpc)
+        .expect_err("deliberately mismatched metadata should fail validation");
+
+    assert!(
+        error.contains("transaction_hash"),
+        "validation error should explain the mismatched field: {error}"
+    );
+
+    let probe: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("probe.json")).unwrap()).unwrap();
+
+    assert_ne!(
+        metadata["transaction_hash"], probe["transaction"],
+        "deliberately mismatched metadata must not match the recorded transaction"
+    );
 }

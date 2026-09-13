@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "6d597ca6a4d168770b91d89769b8343a6d5ef11d78201c606ffd7caecc3058bc",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64308924,
+  "captured_at": "2026-09-10T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "ContractTrap",
+  "fee_bumped": true,
+  "diagnostic_event_count": 49,
+  "purpose": "Same failure class as the 24-event fixture but with a materially larger diagnostic-event list (49), captured ~57k ledgers earlier. Guards against rules that accidentally depend on event-list length or on a single contract."
+}

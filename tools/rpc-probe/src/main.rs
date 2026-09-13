@@ -20,7 +20,21 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 use serde_json::{json, Value};
+
+#[derive(Debug, Serialize)]
+struct FixtureMetadata {
+    transaction_hash: String,
+    network: String,
+    ledger: u64,
+    captured_at: String,
+    rpc_provider: String,
+    failure_category: String,
+    fee_bumped: bool,
+    diagnostic_event_count: usize,
+    purpose: String,
+}
 
 use crate::probe::probe_transaction;
 use crate::rpc::RpcClient;
@@ -93,6 +107,15 @@ enum Command {
         /// Directory to write the fixture into.
         #[arg(long)]
         out: PathBuf,
+
+        /// Human-readable explanation of why this fixture is useful.
+        #[arg(long)]
+        purpose: String,
+
+        /// Human-readable failure category for this fixture.
+        #[arg(long)]
+        failure_category: String,
+
         /// Per-request timeout in seconds.
         #[arg(long, default_value_t = 30)]
         timeout: u64,
@@ -205,6 +228,8 @@ fn run() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
             rpc,
             tx,
             out,
+            purpose,
+            failure_category,
             timeout,
         } => {
             let client = RpcClient::new(&rpc, Duration::from_secs(timeout));
@@ -219,12 +244,33 @@ fn run() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
             writeln!(f, "{}", serde_json::to_string_pretty(&result)?)?;
 
             let passphrase = network_passphrase(&client);
-            let report = probe_transaction(&rpc, passphrase, &tx, &result);
+            let report = probe_transaction(&rpc, passphrase.clone(), &tx, &result);
             let meta_path = out.join("probe.json");
             std::fs::write(&meta_path, serde_json::to_string_pretty(&report)?)?;
 
+            let metadata = FixtureMetadata {
+                transaction_hash: tx.clone(),
+                network: passphrase.ok_or("RPC response did not provide a network passphrase")?,
+                ledger: report
+                    .ledger
+                    .ok_or("probe report did not provide a ledger")?,
+                captured_at: chrono::Utc::now().to_rfc3339(),
+                rpc_provider: rpc.clone(),
+                failure_category,
+                fee_bumped: report
+                    .failure_signal
+                    .as_ref()
+                    .map(|signal| signal.fee_bumped)
+                    .unwrap_or(false),
+                diagnostic_event_count: report.diagnostic_events.count,
+                purpose,
+            };
+
+            let metadata_path = out.join("metadata.json");
+            std::fs::write(&metadata_path, serde_json::to_string_pretty(&metadata)?)?;
             println!("wrote {}", path.display());
             println!("wrote {}", meta_path.display());
+            println!("wrote {}", metadata_path.display());
             Ok(std::process::ExitCode::SUCCESS)
         }
     }

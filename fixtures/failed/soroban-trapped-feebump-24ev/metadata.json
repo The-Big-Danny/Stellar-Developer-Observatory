@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "2514224d35758cdaa2dd7b6ec1c091369fc34b2facfdbd9d384ff322883b34ae",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64365919,
+  "captured_at": "2026-09-10T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "ContractTrap",
+  "fee_bumped": true,
+  "diagnostic_event_count": 24,
+  "purpose": "Baseline Soroban failure. Fee-bumped, trapped inside contract execution, 24 diagnostic events. Represents the dominant failure shape observed on mainnet during M0."
+}
