@@ -5,14 +5,31 @@ suite run **offline** — no endpoint, no API key, no funded account, no node.
 
 ## Layout
 
-```
 fixtures/
 └── failed/
     └── <name>/
         ├── rpc-response.json   the `result` member of getTransaction, verbatim
         ├── probe.json          what sdo-probe observed at capture time
+        ├── metadata.json       validated machine-readable fixture metadata
         └── README.md           provenance and why this fixture is useful
-```
+
+## `metadata.json` schema
+
+Each fixture must contain a `metadata.json` file with the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `transaction_hash` | string | Stellar transaction hash recorded by the fixture |
+| `network` | string | Stellar network passphrase |
+| `ledger` | integer | Ledger containing the recorded transaction |
+| `captured_at` | string | Time the fixture was captured, in RFC 3339 format |
+| `rpc_provider` | string | RPC endpoint used to capture the fixture |
+| `failure_category` | string | Human-readable category for the failure |
+| `fee_bumped` | boolean | Whether the transaction used a fee-bump |
+| `diagnostic_event_count` | integer | Number of diagnostic events recorded by the probe |
+| `purpose` | string | Human-readable explanation of why the fixture is useful |
+
+The metadata is machine-readable and validated by CI. The fixture `README.md` remains the human-readable explanation of the fixture and its purpose.
 
 ## The four rules
 
@@ -59,7 +76,9 @@ cargo run -p sdo-probe -- scan --want 5
 # Record one
 cargo run -p sdo-probe -- capture \
     --tx <TRANSACTION_HASH> \
-    --out fixtures/failed/<short-descriptive-name>
+    --out fixtures/failed/<short-descriptive-name> \
+    --failure-category <CATEGORY> \
+    --purpose "<WHY THIS FIXTURE IS USEFUL>"
 ```
 
 Then write the fixture's `README.md`, copying the shape of an existing one:

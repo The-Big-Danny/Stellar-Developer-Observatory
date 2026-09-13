@@ -63,11 +63,14 @@ under `fixtures/failed/<name>/`.
 
 ### Capturing a fixture
 
+Run:
+
 ```bash
-cargo run -p sdo-probe -- scan --want 5
 cargo run -p sdo-probe -- capture \
     --tx <TRANSACTION_HASH> \
-    --out fixtures/failed/<short-descriptive-name>
+    --out fixtures/failed/<short-descriptive-name> \
+    --failure-category <CATEGORY> \
+    --purpose "<WHY THIS FIXTURE IS USEFUL>"
 ```
 
 Then write `fixtures/failed/<name>/README.md` documenting the transaction hash,

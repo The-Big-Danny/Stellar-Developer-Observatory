@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "c90eab4b76a34d20206a137892cb4d0f69ab101cd74cce790d3b956d311b7fb2",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64368700,
+  "captured_at": "2026-09-10T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "Validation",
+  "fee_bumped": false,
+  "diagnostic_event_count": 0,
+  "purpose": "Negative control. A failed CLASSIC transaction with no Soroban operation and zero diagnostic events. Any rule that fires on this is wrong, and any code path that assumes diagnostic events exist will break here."
+}

@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "1a24d6811454317f3337c0f66463d2b2df5b69632cdd0c0f8bdf728e3a0d81f1",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64392368,
+  "captured_at": "2026-09-12T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "InvalidAuthorizationEntry",
+  "fee_bumped": true,
+  "diagnostic_event_count": 26,
+  "purpose": "First real authorization failure and first fixture with address credentials. Terminal Error(Auth, InvalidInput), 'signature has expired': the host checked at ledger 64392368 against an expiration of 64392366, and the envelope's auth entry independently declares the same expiration ledger. Proves the invalid_authorization_entry rule's Confirmed path."
+}
