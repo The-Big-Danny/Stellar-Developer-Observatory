@@ -85,55 +85,87 @@ A fixture covering a category we have never seen is extremely valuable — see
 ## Adding a failure rule
 
 Rules are the unit of contribution here. Adding one should touch three things.
-
-> **Rules are milestone M4 and the engine ships none yet.** The interface exists
-> and is stable. If you want to write the first one, comment on the issue first
-> so two people do not write it at once.
+Six rules already exist in `crates/soroban-failure-analysis/src/rules/`; read
+one, and [rules.md](docs/architecture/rules.md), before writing your own.
 
 ### 1. The rule
 
 Create `crates/soroban-failure-analysis/src/rules/<your_rule>.rs`:
 
 ```rust
-use crate::{CandidateCause, CauseClass, Confidence, Evidence, EvidenceSource, FailureContext, Rule};
+use crate::diagnosis::{CandidateCause, Confidence, Evidence, EvidenceSource};
+use crate::model::DiagnosticAvailability;
+use crate::rule::{FailureContext, Rule, RuleOutcome};
+use crate::taxonomy::{CauseClass, FailureStage};
 
-pub struct MissingAuthEntry;
+pub struct MyRule;
 
-impl Rule for MissingAuthEntry {
-    fn id(&self) -> &'static str { "missing_auth_entry" }
+impl Rule for MyRule {
+    fn id(&self) -> &'static str { "my_rule" }
 
     fn description(&self) -> &'static str {
-        "Detects a required authorization entry absent from the envelope"
+        "One line: the failure this detects"
     }
 
-    fn evaluate(&self, ctx: &FailureContext<'_>) -> Option<CandidateCause> {
-        // Rules that reason from diagnostic events MUST check this first.
-        // Absence of evidence is not evidence of absence.
-        if !ctx.input.has_diagnostic_evidence() {
-            return None;
+    fn evaluate(&self, ctx: &FailureContext<'_>) -> RuleOutcome {
+        // Say why the rule does not concern this transaction...
+        if ctx.model.stage() != Some(FailureStage::ContractExecution) {
+            return RuleOutcome::not_applicable("only applies to contract execution traps");
+        }
+        // ...and why it could, but cannot decide. Absence of evidence is not
+        // evidence of absence.
+        if ctx.model.diagnostics.availability == DiagnosticAvailability::NotEmitted {
+            return RuleOutcome::no_evidence("diagnostic events were not available");
         }
 
-        // ... decide, or return None ...
-        None
+        // ... look for the evidence; if it is not there, return no_evidence ...
+
+        RuleOutcome::Match(CandidateCause {
+            class: CauseClass::Undetermined, // your class
+            confidence: Confidence::Likely,
+            summary: "One sentence stating the claim.".into(),
+            evidence: vec![Evidence::new(
+                EvidenceSource::DiagnosticEvent { index: 0 },
+                "what was observed, not what it means",
+            )],
+            remediation: Some("What to check or change next.".into()),
+            rule_id: self.id().into(),
+        })
     }
 }
 ```
 
-Register it in `RuleRegistry::builtin()`.
+Work from `ctx.model` (the canonical `TransactionModel`), not raw XDR. Export
+the rule from `rules/mod.rs`, register it in `RuleRegistry::builtin()`, and
+update the tripwire test that lists rule ids.
 
 ### 2. A fixture exhibiting it
 
-A rule with no fixture is untested by construction and will not be merged.
+A rule that interprets diagnostic events needs a **real** fixture — its
+evidence shape cannot be known otherwise, and it will not be merged without one.
+The one exception is a rule whose only evidence is a protocol result code
+defined as that exact cause; it may ship with synthetic tests if its docs say
+plainly that it is unvalidated.
 
-### 3. A test asserting the rule fires — and that it stays quiet
+`cargo run -p soroban-failure-rpc --example survey_failures` samples mainnet
+and buckets failed Soroban transactions by how they failed, which is how the
+authorization fixtures were found.
 
-Assert both that your rule identifies its own fixture **and** that it does not
-fire on `fixtures/failed/classic-failed-no-diagnostics`, the negative control.
+### 3. Tests: it fires, and it stays quiet
+
+- Synthetic unit tests in the rule file for **every** confidence level and every
+  `NotApplicable` / `NoEvidence` path.
+- A real-fixture test in `crates/sdo/tests/classification.rs`.
+- Assert it does not fire on other rules' fixtures or on
+  `fixtures/failed/classic-failed-no-diagnostics`, the negative control.
 
 ### What makes a rule good
 
-- **Return `None` rather than guessing.** An honest "undetermined" is a correct
+- **Return `NoEvidence` rather than guessing.** An honest "unknown" is a correct
   answer. A confident wrong answer is the worst thing this project could ship.
+- **Reserve `Confirmed` for corroborated claims.** The host stating a cause is
+  `Likely`; the host stating it *and* the transaction's own data corroborating
+  it is `Confirmed`.
 - **Cite evidence.** Point at the specific diagnostic event or auth entry index.
   Anything above `Confidence::Possible` must carry evidence.
 - **State observations, not conclusions, in evidence.** Good: "auth entry list is

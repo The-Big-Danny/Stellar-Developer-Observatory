@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "cb94259e03b10cede018ee24ef43b42d73e8461c4cfe4cc9750fe58f05fb53f5",
+  "network": "Public Global Stellar Network ; September 2015",
+  "ledger": 64324119,
+  "captured_at": "2026-09-12T00:00:00Z",
+  "rpc_provider": "https://rpc.lightsail.network/",
+  "failure_category": "InvalidAuthorizationEntry",
+  "fee_bumped": false,
+  "diagnostic_event_count": 24,
+  "purpose": "First real Soroban failure that is not fee-bumped. Terminal Error(Auth, ExistingValue), 'nonce already exists for address', naming the address of auth entry 0. Exercises the invalid_authorization_entry rule's Likely path: prior nonce use is ledger state the transaction cannot prove, so the rule must not report it as confirmed."
+}

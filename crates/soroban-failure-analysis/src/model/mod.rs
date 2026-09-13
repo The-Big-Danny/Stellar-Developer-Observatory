@@ -29,8 +29,8 @@ use crate::taxonomy::FailureStage;
 
 pub use envelope::{FeeBump, Invocation, Operation, OperationKind};
 pub use events::{
-    error_label, CallFrame, CallOutcome, DiagEvent, DiagnosticAvailability, Diagnostics, EventKind,
-    TerminalError,
+    error_label, value_label, CallFrame, CallOutcome, DiagEvent, DiagnosticAvailability,
+    Diagnostics, EventKind, TerminalError,
 };
 pub use outcome::{FailedOperation, FeeBumpResult, Outcome};
 pub use soroban::{

@@ -9,7 +9,7 @@ is covered by tests. Nothing below is aspirational marketing.
 | **M1 — Foundation** | ✅ **Complete** (2026-09-10) |
 | **M2 — Transaction & XDR engine** | ✅ **Complete** (2026-09-11) |
 | **M3 — Contract error resolution** | ✅ **Complete** (2026-09-11) |
-| M4 — Failure classification | ⬜ Planned — next; **two of six categories now have real evidence** |
+| **M4 — Failure classification** | 🟡 **Partly complete** (2026-09-12) — 3 of 6 categories validated on real data |
 | M5 — Accuracy & reliability | ⬜ Planned |
 | M6 — Developer experience | ⬜ Planned |
 | M7 — Ecosystem integration | ⬜ Planned |
@@ -114,29 +114,42 @@ fixture: ✅ `Error(Contract, #2)` → `NoHarvestablePails`, offline and live.
 Known limitation: Stellar Asset Contract errors are not named. The SAC has no
 on-chain spec, and this project only takes names from a spec.
 
-## ⬜ M4 — Failure classification
+## 🟡 M4 — Failure classification
 
-**Goal:** the first real rules.
+**Goal:** answer *what evidence explains why* a transaction failed.
 
-> ### 🚧 Partly blocked on fixture diversity
->
-> After M2 decoded the diagnostic events, the corpus holds real evidence for
-> **two** categories: footprint (the 24-event fixture) and contract-defined
-> errors (both 49-event fixtures). Rules for those two can be written now.
->
-> The other four still have **no fixture**: missing or invalid authorization,
-> archived entry, resource limit exceeded, insufficient resource fee. Those
-> failures must be deliberately produced on testnet and captured.
->
-> **Any category without a fixture is not implementable.** Tracked in
-> [issue #1](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/1).
+Delivered — see [rules.md](docs/architecture/rules.md):
 
-Target rules: missing/invalid authorization entry, footprint entry missing,
-archived entry requiring restore, resource limit exceeded, insufficient resource
-fee, contract-defined error.
+- A three-state rule interface (`Match` / `NoEvidence` / `NotApplicable`). Every
+  rule's outcome and reason is kept in the diagnosis, and a verdict separates
+  *explained*, *unknown for lack of evidence* and *unsupported*
+- Ranked, evidence-citing candidate causes with remediation
+- `sdo explain` shows the likely cause, its evidence, the next step, and which
+  rules found no evidence
+- `survey_failures`, which sampled 18,000 mainnet transactions and found two
+  real authorization failures, now committed as fixtures
 
-**Done when:** each rule has a fixture, fires on it, and stays silent on the
-negative control.
+| Category | Rule | Real fixture | Status |
+|---|---|---|---|
+| Contract-defined error | `contract_defined_error` | `soroban-trapped-feebump-49ev`, `-49ev-alt` | ✅ validated |
+| Footprint entry missing | `footprint_entry_missing` | `soroban-trapped-feebump-24ev` | ✅ validated |
+| Invalid authorization entry | `invalid_authorization_entry` | `soroban-auth-signature-expired`, `soroban-auth-nonce-reused` | ✅ validated |
+| Archived entry | `archived_entry` | none | 🟡 synthetic only |
+| Resource limit exceeded | `resource_limit_exceeded` | none | 🟡 synthetic only |
+| Insufficient resource fee | `insufficient_resource_fee` | none | 🟡 synthetic only |
+| Missing authorization entry | — | none | ⬜ no rule |
+
+**Done when** each rule has a fixture, fires on it, and stays silent on the
+negative control. **Not yet met** for four categories, which is why M4 is
+partly complete. The missing fixtures are tracked in
+[issue #1](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/1).
+
+> **Policy note.** This roadmap previously said a category without a fixture is
+> not implementable. M4 applies a narrower rule. A rule whose *only* evidence is
+> a protocol result code defined as that very cause (`EntryArchived`,
+> `ResourceLimitExceeded`, `InsufficientRefundableFee`) may ship with synthetic
+> tests, marked unvalidated. A rule that interprets diagnostic events still
+> requires a real fixture — which is why *missing* authorization has no rule.
 
 ## ⬜ M5 — Accuracy & reliability
 

@@ -72,6 +72,11 @@ pub enum EvidenceSource {
     SorobanResources,
     /// The contract spec fetched for the invoked contract.
     ContractSpec,
+    /// The declared footprint as a whole — for example, to state that a key
+    /// is absent from it.
+    Footprint,
+    /// Resource consumption or fees reported by the host.
+    ObservedResources,
 }
 
 /// A single piece of evidence supporting (or qualifying) a candidate cause.
@@ -116,6 +121,47 @@ pub struct CandidateCause {
     pub rule_id: String,
 }
 
+/// How one rule concluded, without the candidate itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "SCREAMING_SNAKE_CASE"))]
+pub enum RuleStatus {
+    /// The rule produced a candidate cause.
+    Matched,
+    /// The rule could apply, but the evidence it needs was absent or
+    /// inconclusive.
+    NoEvidence,
+    /// The rule does not concern this transaction.
+    NotApplicable,
+}
+
+/// The outcome of one rule, kept so a diagnosis can explain what was *not*
+/// concluded as well as what was.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct RuleReport {
+    /// The rule's stable identifier.
+    pub rule_id: String,
+    /// How it concluded.
+    pub status: RuleStatus,
+    /// Why it did not match. `None` when it matched.
+    pub reason: Option<String>,
+}
+
+/// The overall answer a diagnosis gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    /// The transaction succeeded.
+    NotAFailure,
+    /// At least one rule produced a cause; this is the top cause's confidence.
+    Explained(Confidence),
+    /// Some rule could apply, but none found enough evidence. The honest
+    /// answer is "unknown", and `rule_reports` says what was missing.
+    InsufficientEvidence,
+    /// No implemented rule concerns this kind of failure.
+    Unsupported,
+}
+
 /// The result of analysing a failed transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -134,6 +180,9 @@ pub struct Diagnosis {
     /// `NoHarvestablePails` says *what* it reported, and turning that into a
     /// ranked explanation is the job of rules.
     pub contract_errors: Vec<ContractErrorReport>,
+    /// Every evaluated rule's outcome, in evaluation order — including the ones
+    /// that did not match, and why.
+    pub rule_reports: Vec<RuleReport>,
     /// Facts the engine could not establish, stated plainly.
     ///
     /// Populated when required inputs were absent — most commonly when
@@ -154,6 +203,26 @@ impl Diagnosis {
     pub fn is_undetermined(&self) -> bool {
         self.candidate_causes.is_empty()
     }
+
+    /// The overall answer: explained (and how confidently), unknown for lack
+    /// of evidence, unsupported, or not a failure at all.
+    pub fn verdict(&self) -> Verdict {
+        if self.stage.is_none() {
+            return Verdict::NotAFailure;
+        }
+        if let Some(top) = self.top_cause() {
+            return Verdict::Explained(top.confidence);
+        }
+        if self
+            .rule_reports
+            .iter()
+            .any(|r| r.status == RuleStatus::NoEvidence)
+        {
+            Verdict::InsufficientEvidence
+        } else {
+            Verdict::Unsupported
+        }
+    }
 }
 
 #[cfg(test)]
@@ -173,10 +242,66 @@ mod tests {
             stage: Some(FailureStage::Unknown),
             candidate_causes: Vec::new(),
             contract_errors: Vec::new(),
+            rule_reports: Vec::new(),
             limitations: vec!["no diagnostic events available".into()],
             rules_evaluated: 0,
         };
         assert!(d.is_undetermined());
         assert!(d.top_cause().is_none());
+    }
+
+    fn report(status: RuleStatus) -> RuleReport {
+        RuleReport {
+            rule_id: "r".into(),
+            status,
+            reason: None,
+        }
+    }
+
+    fn diagnosis(stage: Option<FailureStage>, reports: Vec<RuleReport>) -> Diagnosis {
+        Diagnosis {
+            transaction_hash: None,
+            stage,
+            candidate_causes: Vec::new(),
+            contract_errors: Vec::new(),
+            rule_reports: reports,
+            limitations: Vec::new(),
+            rules_evaluated: 0,
+        }
+    }
+
+    #[test]
+    fn verdict_distinguishes_unknown_from_unsupported_from_success() {
+        let stage = Some(FailureStage::ContractExecution);
+        assert_eq!(diagnosis(None, Vec::new()).verdict(), Verdict::NotAFailure);
+        assert_eq!(
+            diagnosis(
+                stage,
+                vec![
+                    report(RuleStatus::NotApplicable),
+                    report(RuleStatus::NoEvidence)
+                ]
+            )
+            .verdict(),
+            Verdict::InsufficientEvidence
+        );
+        assert_eq!(
+            diagnosis(stage, vec![report(RuleStatus::NotApplicable)]).verdict(),
+            Verdict::Unsupported
+        );
+    }
+
+    #[test]
+    fn verdict_reports_the_top_causes_confidence() {
+        let mut d = diagnosis(Some(FailureStage::ContractExecution), Vec::new());
+        d.candidate_causes.push(CandidateCause {
+            class: CauseClass::ContractDefinedError,
+            confidence: Confidence::Likely,
+            summary: String::new(),
+            evidence: Vec::new(),
+            remediation: None,
+            rule_id: "r".into(),
+        });
+        assert_eq!(d.verdict(), Verdict::Explained(Confidence::Likely));
     }
 }

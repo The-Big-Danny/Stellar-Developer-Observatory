@@ -18,6 +18,20 @@ pub const FEE_BUMP_24: &str = "soroban-trapped-feebump-24ev";
 pub const FEE_BUMP_49: &str = "soroban-trapped-feebump-49ev";
 pub const FEE_BUMP_49_ALT: &str = "soroban-trapped-feebump-49ev-alt";
 pub const CLASSIC: &str = "classic-failed-no-diagnostics";
+pub const AUTH_EXPIRED: &str = "soroban-auth-signature-expired";
+pub const AUTH_NONCE: &str = "soroban-auth-nonce-reused";
+
+/// Analyse a fixture with contract specs resolved from `fixtures/contracts/`,
+/// the way `sdo explain --contracts` does.
+pub fn diagnose_with_specs(name: &str) -> soroban_failure_analysis::Diagnosis {
+    let input = input(name);
+    let needed = soroban_failure_analysis::contract::contracts_needing_specs(
+        &TransactionModel::from_input(&input),
+    );
+    let source = soroban_failure_rpc::FixtureContractSource::new(root().join("contracts"));
+    let specs = soroban_failure_rpc::fetch_specs(&source, &needed);
+    soroban_failure_analysis::analyze(&input.with_contract_specs(specs))
+}
 
 pub fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

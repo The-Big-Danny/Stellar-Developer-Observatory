@@ -7,16 +7,19 @@
 
 > ### ⚠️ Status: early development / experimental
 >
-> **This project cannot yet tell you *why* your transaction failed.**
+> Milestones M0–M3 are complete and **M4 is partly complete**. For a failed
+> Soroban transaction it tells you **where** it failed, reconstructs the
+> contract call trace, names contract-defined errors from the contracts' own
+> specs, and **ranks evidence-backed candidate causes** for footprint,
+> contract-error and invalid-authorization failures — the categories that
+> covered every failure in a one-week sample of 18,000 mainnet transactions.
 >
-> Milestones M0–M3 are complete. It can tell you **where** a transaction failed,
-> reconstruct the contract call trace, separate declared resources from what the
-> host actually used, and **name contract-defined errors** from the contracts'
-> own specs. **No failure rules are implemented yet** (milestone M4), so it
-> ranks no causes.
->
-> Nothing in this README describes a capability that does not exist. See
+> It says **unknown** when the evidence is not there. Missing authorization has
+> no rule yet, and three result-code rules are validated only against synthetic
+> data. See [the rules](docs/architecture/rules.md) and
 > [ROADMAP.md](ROADMAP.md).
+>
+> Nothing in this README describes a capability that does not exist.
 
 ---
 
@@ -34,11 +37,11 @@ opened by Stellar's own team in 2023, asked for errors that name the missing aut
 entry, the missing footprint entry, and the depleted resource. It was closed
 without a linked implementation.
 
-Our own corpus shows it. Three recorded mainnet failures all report the
-identical result, `Trapped`. Their diagnostic events show one is a storage
-access outside the declared footprint and the other two are a contract's own
-`NoHarvestablePails` error — two unrelated failures that the result code
-cannot tell apart.
+Our own corpus shows it. Five recorded mainnet failures all report the
+identical result, `Trapped`. Their diagnostic events show a storage access
+outside the declared footprint, a contract's own `NoHarvestablePails` error, an
+expired authorization signature and a reused authorization nonce — unrelated
+failures the result code cannot tell apart, and which M4 now separates.
 
 ## The approach
 
@@ -60,7 +63,7 @@ website**:
                     │ soroban-failure-analysis     │  NO I/O. Pure. Deterministic.
                     │   transaction model  (M2) ✓  │
                     │   error resolver     (M3) ✓  │
-                    │   rule engine        (M4)    │
+                    │   rule engine        (M4) ◐  │
                     │   ranker                     │
                     └─────────────┬────────────────┘
                                   │  Diagnosis
@@ -120,14 +123,19 @@ cargo test --workspace
 Analyse a committed fixture — no network needed:
 
 ```bash
-cargo run -p sdo -- explain     --fixture fixtures/failed/soroban-trapped-feebump-49ev     --contracts fixtures/contracts
+cargo run -p sdo -- explain \
+    --fixture fixtures/failed/soroban-trapped-feebump-49ev \
+    --contracts fixtures/contracts
 ```
+
+Abridged output (`…` marks elisions):
 
 ```
 Transaction     6d597ca6a4d168770b91d89769b8343a6d5ef11d78201c606ffd7caecc3058bc
 Fee-bumped      yes — fee source GA2JRQOF…, outer result TxFeeBumpInnerFailed
 Result          TxFailed — operation 0: InvokeHostFunction Trapped
 Failure stage   contract_execution — Soroban contract execution trapped
+Likely cause    contract_defined_error (confirmed)
 Diagnostic      49 events (30 execution, 19 core_metrics)
 
 Call trace (from diagnostic events)
@@ -137,24 +145,36 @@ Call trace (from diagnostic events)
 
 Contract errors
   Error(Contract, #2)  →  NoHarvestablePails   [terminal]
-      contract    CBGSBKYMYO6OMGHQXXNOBRGVUDFUDVC2XLC3SXON5R2SNXILR7XCKKY3 (only contract to raise it)
-      resolution  from the contract spec (enum Error); WASM 70fe4469… matches the transaction footprint
-      doc         Harvesting all pails results in 0 reward
   Error(Contract, #9)  →  PailMissing   [raised, then caught or superseded]
-      contract    CDL74RF5BLYR2YBLCCI7F5FB6TPSCLKEJUBSD2RSVWZ4YHF3VMFAIGWA (origin frame of a re-emitted error)
-      resolution  from the contract spec (enum Errors); WASM db2c1429… matches the transaction footprint
 
-Resources               declared        observed
-  CPU instructions      6,732,347       4,345,600
-  resource fee          45,692          29,838 charged …
+Diagnosis
+  verdict: explained — the top cause is confirmed
 
-Candidate causes
-  none — no failure rules are implemented yet (milestone M4)
+  1. contract_defined_error [confirmed]
+     Contract CBGSBKY…KKY3 ended the invocation with its declared error Error::NoHarvestablePails (Error(Contract, #2)).
+     evidence:
+       - `host_fn_failed` reports the invocation ended with Error(Contract, #2) (event 29)
+       - raised by contract CBGSBKY…: the only contract whose error events carry this code (event 26)
+       - the spec of CBGSBKY… declares #2 as Error::NoHarvestablePails; the spec's WASM 70fe4469… is loaded in this transaction's footprint (contract spec)
+       - documented as: "Harvesting all pails results in 0 reward" (contract spec)
+       - earlier, 5 call(s) by CDL74RF5… failed with Error(Contract, #9) (PailMissing) without ending the invocation (event 2)
+     next step: The contract documents NoHarvestablePails as "Harvesting all pails results in 0 reward". Check whether that condition held for this invocation's arguments and the contract's state at the time.
 ```
 
 Every name there comes from the contract's own spec, checked against the WASM
-the transaction actually loaded. Where a name cannot be established, the output
-says `unknown` and gives the reason; it never guesses.
+the transaction actually loaded. Every claim cites the event, auth entry or
+footprint it rests on. When the evidence runs out, the output says `unknown`
+and lists what each rule was missing; it never guesses.
+
+What the committed fixtures produce:
+
+| Fixture | Likely cause |
+|---|---|
+| `soroban-trapped-feebump-24ev` | `footprint_entry_missing` (confirmed) — key `vec[Block, 183188]` checked absent from the footprint |
+| `soroban-trapped-feebump-49ev` | `contract_defined_error` (confirmed) — `NoHarvestablePails` |
+| `soroban-auth-signature-expired` | `invalid_authorization_entry` (confirmed) — expiry corroborated by the envelope |
+| `soroban-auth-nonce-reused` | `invalid_authorization_entry` (likely) — nonce reuse cannot be proven from the transaction |
+| `classic-failed-no-diagnostics` | unsupported — not a Soroban failure |
 
 Against the live network, `sdo explain <TX_HASH>` does the same, fetching only
 the contract specs the transaction's errors need.
@@ -182,6 +202,8 @@ providers, 13 of 13 transactions, 437 of 437 events decoded.
   failure categories the corpus still has no fixture for
 - [The canonical transaction model](docs/architecture/transaction-model.md) and
   [contract error resolution](docs/architecture/contract-errors.md)
+- [Failure classification rules](docs/architecture/rules.md) — what each rule
+  requires, its confidence levels, and what is not classified yet
 
 ## Contributing
 

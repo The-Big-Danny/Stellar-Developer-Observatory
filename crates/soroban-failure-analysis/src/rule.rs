@@ -3,20 +3,15 @@
 //! A *rule* looks at one failed transaction and decides whether it can explain
 //! it. Rules are the unit of contribution in this project: adding support for a
 //! new failure mode should mean adding one rule file, one fixture, and one test
-//! — nothing else.
+//! — nothing else. The built-in rules live in [`crate::rules`].
 //!
 //! Rules must be:
 //!
 //! * **Pure.** No I/O, no clock, no randomness, no global state.
 //! * **Independent.** A rule never inspects or depends on another rule's output.
-//! * **Honest.** Return `None` rather than a low-confidence guess, and never
-//!   conclude anything from absent diagnostic events when
-//!   [`AnalysisInput::diagnostics_enabled`] is `false`.
-//!
-//! No rules ship in this milestone. The registry below is deliberately empty;
-//! populating it is milestone M4.
-//!
-//! [`AnalysisInput::diagnostics_enabled`]: crate::AnalysisInput::diagnostics_enabled
+//! * **Honest.** A rule says *why* it did not match. [`RuleOutcome`] has three
+//!   states so that "this rule does not concern this transaction" is never
+//!   confused with "this rule concerns it, but the evidence is missing".
 
 use crate::contract::ContractErrorReport;
 use crate::diagnosis::CandidateCause;
@@ -41,12 +36,55 @@ pub struct FailureContext<'a> {
     pub contract_errors: &'a [ContractErrorReport],
 }
 
+/// What a rule concluded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleOutcome {
+    /// The rule does not concern this transaction — for example a Soroban rule
+    /// on a classic transaction, or any rule on a successful one.
+    NotApplicable {
+        /// Why, in one sentence.
+        reason: String,
+    },
+    /// The rule could concern this transaction, but the evidence it needs is
+    /// absent or inconclusive. This is "unknown", stated honestly.
+    NoEvidence {
+        /// What was missing, in one sentence.
+        reason: String,
+    },
+    /// The evidence supports a candidate cause.
+    Match(CandidateCause),
+}
+
+impl RuleOutcome {
+    /// Shorthand for [`RuleOutcome::NotApplicable`].
+    pub fn not_applicable(reason: impl Into<String>) -> Self {
+        Self::NotApplicable {
+            reason: reason.into(),
+        }
+    }
+
+    /// Shorthand for [`RuleOutcome::NoEvidence`].
+    pub fn no_evidence(reason: impl Into<String>) -> Self {
+        Self::NoEvidence {
+            reason: reason.into(),
+        }
+    }
+
+    /// The candidate cause, if the rule matched.
+    pub fn candidate(&self) -> Option<&CandidateCause> {
+        match self {
+            Self::Match(c) => Some(c),
+            _ => None,
+        }
+    }
+}
+
 /// A single explanation strategy.
 ///
 /// Implementations live in `crates/soroban-failure-analysis/src/rules/` and are
 /// registered in [`RuleRegistry::builtin`].
 pub trait Rule: Send + Sync {
-    /// Stable identifier, e.g. `"missing_auth_entry"`.
+    /// Stable identifier, e.g. `"footprint_entry_missing"`.
     ///
     /// Appears in output as `CandidateCause::rule_id` and must not change once
     /// released — consumers and tests match on it.
@@ -56,10 +94,7 @@ pub trait Rule: Send + Sync {
     fn description(&self) -> &'static str;
 
     /// Decide whether this rule explains the failure.
-    ///
-    /// Return `None` when it does not apply, or when the evidence needed to
-    /// decide is unavailable.
-    fn evaluate(&self, ctx: &FailureContext<'_>) -> Option<CandidateCause>;
+    fn evaluate(&self, ctx: &FailureContext<'_>) -> RuleOutcome;
 }
 
 /// The set of rules an analysis run will evaluate.
@@ -74,13 +109,20 @@ impl RuleRegistry {
         Self::default()
     }
 
-    /// The rules shipped with this crate.
+    /// The rules shipped with this crate, in evaluation order.
     ///
-    /// **Currently empty.** Failure rules are milestone M4; this crate is at M1
-    /// and deliberately ships the engine without them rather than shipping
-    /// guesses. See `ROADMAP.md`.
+    /// Order only breaks ties between candidates of equal confidence; see
+    /// [`crate::analyze_with`]. What each rule requires, and which categories
+    /// have no rule yet, is documented in `docs/architecture/rules.md`.
     pub fn builtin() -> Self {
-        Self::new()
+        let mut r = Self::new();
+        r.register(Box::new(crate::rules::ArchivedEntry))
+            .register(Box::new(crate::rules::ResourceLimitExceeded))
+            .register(Box::new(crate::rules::InsufficientResourceFee))
+            .register(Box::new(crate::rules::ContractDefinedError))
+            .register(Box::new(crate::rules::InvalidAuthorizationEntry))
+            .register(Box::new(crate::rules::FootprintEntryMissing));
+        r
     }
 
     /// Add a rule.
@@ -131,8 +173,8 @@ mod tests {
         fn description(&self) -> &'static str {
             "test double"
         }
-        fn evaluate(&self, _ctx: &FailureContext<'_>) -> Option<CandidateCause> {
-            Some(CandidateCause {
+        fn evaluate(&self, _ctx: &FailureContext<'_>) -> RuleOutcome {
+            RuleOutcome::Match(CandidateCause {
                 class: CauseClass::Undetermined,
                 confidence: Confidence::Possible,
                 summary: "test".into(),
@@ -144,12 +186,20 @@ mod tests {
     }
 
     #[test]
-    fn builtin_registry_is_empty_until_m4() {
-        // This test is a tripwire. When M4 lands the first rule, update it
-        // deliberately -- do not delete it.
-        assert!(
-            RuleRegistry::builtin().is_empty(),
-            "no failure rules ship before M4"
+    fn builtin_registry_ships_exactly_the_m4_rules() {
+        // Tripwire. Rule ids are a public contract; adding, removing or
+        // renaming one must be a deliberate change to this list.
+        let ids: Vec<_> = RuleRegistry::builtin().iter().map(|r| r.id()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "archived_entry",
+                "resource_limit_exceeded",
+                "insufficient_resource_fee",
+                "contract_defined_error",
+                "invalid_authorization_entry",
+                "footprint_entry_missing",
+            ]
         );
     }
 

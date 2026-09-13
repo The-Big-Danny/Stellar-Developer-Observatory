@@ -1,0 +1,40 @@
+{
+  "schema": "sdo.probe.v1",
+  "rpc_url": "https://rpc.lightsail.network/",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "transaction": "1a24d6811454317f3337c0f66463d2b2df5b69632cdd0c0f8bdf728e3a0d81f1",
+  "status": "FAILED",
+  "ledger": 64392368,
+  "is_soroban": true,
+  "soroban_operation": "invoke_host_function",
+  "envelope_xdr": {
+    "state": "DECODED"
+  },
+  "result_xdr": {
+    "state": "DECODED"
+  },
+  "result_meta_xdr": {
+    "state": "DECODED"
+  },
+  "meta_version": 4,
+  "soroban_meta_present": true,
+  "failure_signal": {
+    "transaction_result": "tx_fee_bump_inner_failed",
+    "fee_bumped": true,
+    "inner_transaction_result": "tx_failed",
+    "operation_results": [
+      "invoke_host_function_trapped"
+    ],
+    "failed_in_contract_execution": true
+  },
+  "diagnostic_events": {
+    "available": true,
+    "location": "top_level",
+    "count": 26,
+    "decoded_count": 26,
+    "decoded": true,
+    "decode_errors": []
+  },
+  "verdict": "SUFFICIENT_FOR_ANALYSIS",
+  "notes": []
+}
