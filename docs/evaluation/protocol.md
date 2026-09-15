@@ -27,8 +27,10 @@ commit.
 
 Its limits must be stated wherever results are quoted:
 
-- For **tier A** labels (construction or replay) it measures agreement with
+- For labels by **construction** (tier A) it measures agreement with
   independent ground truth.
+- For **replay-verified** labels (also tier A) it measures agreement with a
+  causal test run on a reconstruction of the original execution (§8.3).
 - For **tier B and C** labels it measures agreement with **expert reference
   labels**. The labellers interpret some of the same evidence SDO reads, so
   agreement there is not proof of what happened on chain.
@@ -44,11 +46,12 @@ Its limits must be stated wherever results are quoted:
 | **Evaluation data** | A dataset under `evaluation/datasets/`. Never used to design, tune or test rules. |
 | **Sample** | One failed transaction in an evaluation dataset |
 | **Reference label** | The cause assigned to a sample by the labelling procedure in §8. Never "gold" or "ground truth" without qualification. |
-| **Independent ground truth** | A reference label with `evidence_tier: A` |
+| **Independent ground truth** | A reference label with `reference_label_source: construction` |
+| **Replay-verified reference label** | A reference label with `reference_label_source: replay` (tier A, §8.3) |
 | **Expert reference label** | A reference label with `evidence_tier: B` or `C` |
 | **Prediction** | What SDO's evaluated build outputs for a sample (§11) |
 | **Abstention** | A prediction whose verdict is `InsufficientEvidence` or `Unsupported` |
-| **Headline figure** | A figure computed on `mainnet-v1` as defined in [metrics.md](metrics.md) |
+| **Headline figure** | One of exactly four figures on `mainnet-v1`, fixed in [metrics.md §10](metrics.md#10-headline-and-secondary-figures). Every other figure is secondary. |
 
 SDO's output semantics are used exactly as implemented:
 
@@ -89,6 +92,17 @@ scanned
                └─ sample
 ```
 
+Two records sit above the transaction level, because they concern rounds and
+ledgers rather than transactions:
+
+| Record | Meaning |
+|---|---|
+| `round_missed` | A round that could not be scanned within its permitted interval (§6.1), with its round number |
+| `ledger_unreadable` | A sampled ledger that could not be read completely (§6.3), with its sequence number |
+
+A missed round or an unreadable ledger contributes no transactions to
+`scanned`.
+
 **Nothing is excluded silently.** Every exclusion has exactly one reason code,
 from the lists below.
 
@@ -116,7 +130,7 @@ A transaction passing all seven is **eligible**.
 | `cap_code_cluster` | Accepting it would put a second sample in its `code_cluster` |
 | `cap_submitter_cluster` | Accepting it would put a fourth sample in its `submitter_cluster` |
 | `not_selected_target_reached` | Eligible, but the target sample count was already reached |
-| `capture_failed` | Accepted, but its transaction could not be recorded (§7) |
+| `capture_failed` | Accepted, but its transaction could not be recorded after the retry and fallback procedure (§7.1) |
 
 ## 5. Deduplication
 
@@ -131,7 +145,9 @@ determined **only** by these steps, in order:
    `no_root_contract_invocation` (§4.2, check 6).
 2. **Instance.** Read the root contract's instance ledger entry
    (`ContractData`, key `LedgerKeyContractInstance`, persistent) with
-   `getLedgerEntries` during scanning.
+   `getLedgerEntries` during scanning, using the retry and fallback procedure
+   (§7.1). The response is recorded verbatim, whether or not the transaction is
+   later selected (§15).
    - If the entry cannot be read (not found, archived, lookup failure after
      retries) → **unresolved**, `code_identity_instance_unavailable`.
 3. **Executable.**
@@ -176,53 +192,101 @@ SDO's diagnosis.
 ### 6.1 Rounds and windows
 
 A dataset is collected in up to `R_max` rounds ([§18](#18-open-parameters)).
-
-- At the start of round `r`, call `getHealth` and set the window
-  `lo_r = oldestLedger + 500`, `hi_r = latestLedger − 20`. The margins keep the
-  scan clear of the ledger range sliding out of retention.
-- Round `r > 1` may start only when `lo_r > hi_(r−1)`. Rounds therefore never
-  overlap. With RPC's roughly 7-day retention, rounds are about a week apart.
-- The RPC provider, `getVersionInfo`, `getNetwork` and `getHealth` responses,
-  and the start and end time of each round are recorded.
-
-### 6.2 Seed
-
-The dataset seed is the 32-byte hash of mainnet ledger `L_seed`. `L_seed` is a
-ledger sequence number fixed in protocol v1, chosen to be **later than the
-latest ledger at the time of freezing**. The seed is therefore unknown to
-everyone when the protocol is frozen and cannot be picked to favour an outcome.
-
-### 6.3 Page selection
-
-Round `r` scans `P` pages ([§18](#18-open-parameters)) of `getTransactions`,
-each with `limit = page_size`. Page `i` (0-based) starts at:
+Round windows are fixed in protocol v1, relative to `L_seed` (§6.2):
 
 ```
-start(r, i) = lo_r + ( U64_BE( SHA-256( seed ‖ "page" ‖ U32_BE(r) ‖ U32_BE(i) )[0..8] )
-                       mod (hi_r − lo_r + 1) )
+W_r = [ L_seed + 1 + (r − 1)·Δ ,  L_seed + r·Δ ]        for r = 1 … R_max
 ```
 
-- `seed` is 32 raw bytes, `"page"` is its ASCII bytes, and `U32_BE`/`U64_BE` are
-  big-endian integers.
-- Transactions appearing on several pages are counted once, by hash.
-- Failed transactions are recorded in `candidates.jsonl` with their cluster
-  keys and eligibility outcome.
+`Δ` is fixed in §18 and is at most 100,000 ledgers. Windows are consecutive and
+never overlap.
+
+- Round `r` may be scanned only after ledger `S_r + 20` has closed (§6.2), and
+  must finish before ledger `min(W_r) + 120,000` closes, so its whole window is
+  still within RPC retention.
+- A round that cannot be completed within that interval is recorded as
+  `round_missed`. It is never rescheduled, shifted, or replaced by another
+  window, and it counts as one of the `R_max` rounds.
+- Each round is executed **once**. An interrupted scan resumes from its recorded
+  progress. Once a round's scan has begun, it is never restarted, and its
+  windows, seed, parameters and providers are never changed. No partial result
+  is discarded.
+- The collection provider and the fallback provider are fixed in §18. Using the
+  fallback provider as defined in §7.1 is part of the procedure, not a provider
+  substitution.
+- For each round, the `getHealth`, `getVersionInfo` and `getNetwork`
+  responses of both providers, and the scan's start and end time, are recorded.
+
+### 6.2 Seeds
+
+`L_seed` is fixed in §18 at freeze. It must exceed the latest closed mainnet
+ledger at the freeze commit by at least 1,000 ledgers.
+
+Each round has its own seed. Round `r`'s seed `seed_r` is the 32-byte ledger
+hash of ledger
+
+```
+S_r = L_seed + r·Δ + 1
+```
+
+the first ledger after `W_r` ends. The **ledger hash** is the `hash` field of
+that ledger's entry in the RPC `getLedgers` response, a 64-character hex string
+decoded to 32 bytes.
+
+- The collector reads `seed_r` from the collection provider **and** from a
+  second, independent source: the fallback provider or a Stellar history
+  archive. Both values are recorded. If they differ, collection stops and
+  nothing from that round is used until the discrepancy is resolved and
+  documented.
+- `S_r` closes only after every transaction in `W_r` has been applied. Nobody
+  can therefore know which ledgers of `W_r` will be sampled while transactions
+  can still be submitted into them, and nobody can choose a seed.
+
+### 6.3 Ledger selection
+
+Round `r` samples `K` ledgers ([§18](#18-open-parameters)). Ledger `i`
+(0-based) is:
+
+```
+L(r, i) = min(W_r) + ( U64_BE( SHA-256( seed_r ‖ "ledger" ‖ U32_BE(r) ‖ U32_BE(i) )[0..8] )
+                       mod Δ )
+```
+
+- `seed_r` is 32 raw bytes, `"ledger"` is its ASCII bytes, and
+  `U32_BE`/`U64_BE` are big-endian integers.
+- A ledger drawn more than once is read once.
+- **Every transaction** in each sampled ledger is read. Call `getTransactions`
+  with `startLedger = L(r, i)` and follow its `cursor` until a transaction from
+  a later ledger is returned, or no further transactions are returned. Requests
+  use the retry and fallback procedure of §7.1.
+- For each sampled ledger, the number of transactions read and the final cursor
+  are recorded.
+- A ledger that cannot be read completely is recorded as `ledger_unreadable`,
+  with its sequence number, and **none** of its transactions become candidates.
+  A partially read ledger is never used.
+- Every failed transaction read is recorded in `candidates.jsonl` with its
+  cluster keys and its eligibility outcome.
+
+Every transaction in a sampled ledger has the same chance of being scanned,
+however busy its ledger and wherever it falls in the ledger's application
+order.
 
 ### 6.4 Selection
 
-Selection is a pure function of the candidates, the seed, the caps, the target
-and the exclusion lists. Within each round, in round order:
+Selection is a pure function of the candidates, the round seeds, the caps, the
+target and the exclusion lists. Within each round, in round order:
 
 1. Sort the round's eligible candidates by
-   `SHA-256( seed ‖ "order" ‖ transaction_hash )` ascending, comparing bytes.
+   `SHA-256( seed_r ‖ "order" ‖ transaction_hash )` ascending, comparing bytes.
    The ordering does not depend on scan order.
 2. Walk them in that order. For each candidate:
    - if the dataset already holds `T` samples → `not_selected_target_reached`;
    - else if its `code_cluster` already has a sample → `cap_code_cluster`;
    - else if its `submitter_cluster` already has 3 samples →
      `cap_submitter_cluster`;
-   - else **accept** it and capture it immediately (§7). If capture fails,
-     record `capture_failed`. The candidate does not count toward any cap, and
+   - else **accept** it and capture it immediately (§7). If capture fails
+     after the procedure in §7.1, record `capture_failed`. The candidate does
+     not count toward any cap, and
      the walk continues with the next candidate.
 
 Selection never reads a rule outcome, cause class, verdict, confidence or
@@ -242,7 +306,7 @@ number.
 For each accepted candidate, in the same round:
 
 - `rpc-response.json`: the `getTransaction` `result`, verbatim. If it cannot be
-  fetched → `capture_failed`.
+  fetched after the procedure in §7.1 → `capture_failed`.
 - Contract ledger entries, verbatim `getLedgerEntries` results, under
   `contracts/<CONTRACT_ID>/` (`instance.json`, and `code.json` when WASM
   backed). The set of contracts is:
@@ -254,9 +318,28 @@ For each accepted candidate, in the same round:
   contract whose entries cannot be recorded is **not** an exclusion. Its status
   is recorded in `sample.json` as `instance_unavailable`, `code_unavailable` or
   `stellar_asset_contract`, and SDO's behaviour without that spec is part of
-  what is measured.
+  what is measured. Every error message from the failed attempts is recorded.
 - `sample.json`, and the dataset's `manifest.json` and `funnel.json`, per the
   schemas defined in #20.
+
+### 7.1 Retries, fallback and capture failures
+
+Every RPC request made during scanning or capture follows the same procedure:
+
+1. Attempt it on the collection provider.
+2. On failure, retry on the collection provider after waiting 1, then 2, then 4
+   seconds: at most four attempts in total.
+3. If all four fail, attempt it once on the fallback provider fixed in §18.
+4. If that fails too, the request has failed. Every error message from every
+   attempt is recorded.
+
+An accepted candidate whose `getTransaction` response cannot be obtained this
+way is recorded as `capture_failed`, with all of its error messages.
+
+The number of `capture_failed` candidates is reported for every round. If it
+exceeds **5%** of the round's accepted candidates (captured plus
+`capture_failed`), the round and its dataset are **flagged** in the run report,
+and the flag is quoted with every headline figure.
 
 ## 8. Reference labels
 
@@ -311,12 +394,26 @@ on its own.
 | `reference_label_source` | `evidence_tier` | Definition |
 |---|---|---|
 | `construction` | **A** | The transaction was built deliberately to fail this way, its intended label was committed before submission, and the recorded result matches the construction (§10) |
-| `replay` | **A** | Re-executing the recorded transaction against its pre-execution ledger state, with an implementation other than SDO, reproduces the failure, **and** a minimal counterfactual change that removes the claimed cause makes that failure disappear. Replay that only reproduces the failure is not tier A. |
+| `replay` | **A** | All three hold: (1) the recorded transaction is re-executed with `soroban-env-host` against a reconstruction of the ledger state it executed on, including the effects of transactions applied before it in the same ledger; (2) the re-execution reproduces the recorded result and diagnostic events; (3) a single declared intervention that removes only the claimed cause (for example: adding the reported key to the footprint, raising the reported resource limit, restoring the archived entry, replaying at a ledger before the signature's expiry, removing the recorded nonce) makes the recorded failure signal disappear. The transaction need not then succeed. The replay log records the state source, host version, intervention and both outcomes. |
 | `source_analysis` | **B** | The contract's source code, shown to correspond to the executed WASM hash, together with raw evidence establishes the cause |
 | `raw_evidence` | **C** | The raw envelope, result, meta and diagnostic events, interpreted from host semantics, establish the cause |
 
-Only tier A is described as **independent ground truth**. Tiers B and C are
-**expert reference labels** everywhere they are reported.
+A re-execution meeting (1) and (2) but not (3) is **replay validation**. It
+shows the recorded evidence is faithful, but it does not test the cause. It may
+be cited as evidence, and the label's source is then whichever of
+`source_analysis` or `raw_evidence` establishes it.
+
+Only `construction` labels are described as **independent ground truth**.
+`replay` labels are **replay-verified reference labels**: they are tier A
+because the cause is tested by intervention rather than read from the same
+events, but they are not ground truth, because they depend on reconstructed
+state and on the fidelity of the intervention. Re-execution uses the same host
+that produced the original events. **Its independence comes from the causal
+intervention, not from using a different implementation.**
+
+Tier B and C labels are **expert reference labels** everywhere they are
+reported. Tier A results are always reported separately for `construction` and
+`replay`, and never combined.
 
 ### 8.4 Acceptable evidence
 
@@ -326,7 +423,8 @@ Acceptable:
   the neutral labelling view (#22) or any decoder independent of SDO's analysis;
 - contract source code, with how it corresponds to the executed WASM;
 - `soroban-env-host` source at a pinned commit, and Stellar documentation;
-- replay logs, with tool, version, ledger state and command;
+- replay logs, with the state source, host version, intervention and both
+  outcomes (§8.3);
 - construction plans committed before submission.
 
 **Never acceptable**, as evidence or as the basis of a label:
@@ -405,10 +503,23 @@ out of the labelling process entirely.
 - **Deduplication.** Caps (§5.3) do not apply. Constructed cases deliberately
   reuse contracts.
 - **Labelling.** A single construction label is sufficient, because it is
-  tier A. §8.5–§8.7 do not apply; §8.8 does.
+  independent ground truth. §8.5–§8.7 do not apply; §8.8 does.
 - **Relationship to development fixtures.** #1 produces development fixtures in
   `fixtures/failed/`. Techniques may be shared, but no transaction appears in
   both.
+- **Deriving `expected_raw_signal`.** It is derived from the construction and
+  from host or protocol behaviour (`soroban-env-host` source or Stellar
+  documentation), **never** from `docs/architecture/rules.md` or the rule
+  modules.
+- **Result-code tautology.** For `ArchivedEntryRequiresRestore`,
+  `ResourceLimitExceeded` and `InsufficientResourceFee`, SDO's rules decide from
+  the same protocol result code that the construction checks as its
+  `expected_raw_signal`. A correct `constructed-v1` prediction for these
+  classes therefore confirms **implementation consistency**, not general
+  diagnostic accuracy, and the run report says so beside those classes.
+- **Scope of the figures.** `constructed-v1` cases deliberately reuse
+  contracts, so its per-class figures describe the constructed cases, not the
+  population of such failures.
 
 ## 11. Prediction
 
@@ -423,10 +534,15 @@ out of the labelling process entirely.
   - rule reports.
 - The **top-1 prediction** is the first candidate's class and confidence when
   the verdict is `Explained`, and an abstention of the named kind otherwise.
-- If a sample fails to decode, or yields `NotAFailure`, at prediction time, it
-  is an **integrity error**. It is listed in the report, excluded from every
-  metric's denominator, and the run is flagged for investigation. This should be
-  impossible for an eligible sample at the same build.
+- A sample that, at prediction time, fails to decode, causes the analysis to
+  panic, or yields the verdict `NotAFailure` is an **integrity error**. This
+  should be impossible for an eligible sample at the same build.
+  - Every integrity error is listed individually in the run report.
+  - Every headline figure is reported twice: **excluding** integrity errors, and
+    counting each integrity error **as a wrong answer**
+    ([metrics.md §3.1](metrics.md#31-integrity-errors)).
+  - If any integrity error occurs, the run is **flagged**, and the flag is quoted
+    with every headline figure.
 
 ## 12. Scoring
 
@@ -435,7 +551,9 @@ intervals are defined in [metrics.md](metrics.md). In particular:
 
 - **abstentions count as misses** for headline top-1 accuracy;
 - **selective accuracy is always shown with coverage**;
-- results are reported per evidence tier;
+- the headline figures are exactly the four fixed in metrics.md §10, and every
+  other figure is secondary;
+- results are reported per evidence tier, with tier A split by source;
 - the two datasets are never pooled.
 
 ## 13. Leakage and selection-bias controls
@@ -460,6 +578,15 @@ or `fixtures/`.
 - A rule defect found through evaluation is filed as a new issue that requires a
   **new development fixture**. The fix is measured in a later run on new
   samples, never on the sample that revealed it.
+- **No person involved in collection, labelling or adjudication runs SDO**
+  (`sdo explain`, `analyze`, or any tool built on them) on any evaluation
+  sample, or on any transaction in a round's windows, before that dataset's
+  labels are locked. Each attests to this in the collection and labelling pull
+  requests.
+- Predictions for a dataset are generated only by `sdo-eval predict`, and only
+  after its labels are locked.
+- Rule changes merged between `eval-protocol-v1` and `eval-build-v1` are listed
+  in the run report.
 
 ### 13.3 Summary
 
@@ -467,10 +594,14 @@ or `fixtures/`.
 |---|---|
 | Rules fitted to the test data | Held-out datasets; development-data exclusion; collection only after the build is frozen; CI leak guard |
 | Labellers know the rules | Guide built from host semantics (#23); neutral view (#22); blind labelling; involvement recorded; independence requirement |
-| Labels adjusted after results | Commit-reveal; labels locked before predictions; post-hoc revisions recorded separately |
+| Labels adjusted after results | Commit-reveal; labels locked before predictions; post-hoc revisions recorded separately; labelling guide frozen before labelling |
+| A favourable later run replaces an unfavourable one | Immutable tags; run 1 published whatever its results; later builds only as later runs |
 | One bot or contract dominates | `code_cluster` cap 1; `submitter_cluster` cap 3; no contract-ID fallback |
 | Sample tilted toward recognised failures | Selection blind to SDO output; no stratification by failure shape |
-| Seed chosen to favour an outcome | Seed is the hash of a ledger that did not exist at freeze time |
+| Seed or window chosen to favour an outcome | Windows fixed relative to `L_seed`; per-round seeds from ledgers that close after each window; seeds verified from two sources; no restarts, rescheduling or provider changes |
+| Busy periods or low-fee transactions under-sampled | Whole ledgers are read, never only a first page |
+| Captures allowed to fail selectively | Retries, fixed fallback provider, every error recorded, 5% round flag |
+| SDO previewed on evaluation data | No one involved runs SDO on samples or window transactions before labels are locked |
 | One time window unrepresentative | Several non-overlapping rounds |
 | Survivorship | Every exclusion in the funnel |
 | Abstaining inflates accuracy | Abstentions are misses at top-1; selective accuracy only beside coverage |
@@ -488,6 +619,8 @@ or `fixtures/`.
 - The actual sample count of each dataset, the exclusion funnel, and any
   shortfall from `T` are published.
 - Failure classes with no samples are stated as **not measured**.
+- Integrity errors, capture-failure flags, `round_missed` and
+  `ledger_unreadable` records are published.
 - README, ROADMAP or any other document may quote only figures that appear in a
   published run report. Selective accuracy is never quoted without coverage,
   and tier B and C results are never described as ground truth.
@@ -498,8 +631,15 @@ Committed for each dataset and run:
 
 - this protocol, `metrics.md` and the labelling guide, with versions;
 - the `eval-protocol-v1` and `eval-build-v1` tags;
-- the seed ledger, the seed, and every round's `getHealth`, `getVersionInfo` and
-  `getNetwork` responses, window, and page start ledgers;
+- `L_seed`; each round's `seed_r` as read from both sources; each round's
+  window, sampled ledger sequence numbers, provider responses (§6.1), scan start
+  and end time, and any `round_missed` record;
+- for every sampled ledger, the number of transactions read, the final cursor,
+  and any `ledger_unreadable` record;
+- for every root contract looked up to resolve code identity, the verbatim
+  `getLedgerEntries` response, **including roots whose transactions were not
+  selected**;
+- every error message from failed requests (§7.1);
 - `candidates.jsonl`, `funnel.json`, `manifest.json` with the SHA-256 of every
   file;
 - every sample's verbatim RPC responses and contract ledger entries;
@@ -529,12 +669,25 @@ The analysis crate remains free of I/O throughout.
 | `eval-protocol-v1` | When #19 merges, with the open parameters filled | This protocol and `metrics.md` |
 | `eval-build-v1` | Before the first `mainnet-v1` collection round (#25); must include #2 | The code that collects, decodes and predicts |
 
-- After `eval-protocol-v1`, **editorial errata** that change no decision (typos,
-  broken links) may be made. Each is listed in the changelog below.
+- The tags `eval-protocol-v1` and `eval-build-v1` are **immutable**: never moved,
+  deleted or re-created.
+- After `eval-protocol-v1`, an **erratum** that changes no decision (a typo, a
+  broken link, an unambiguous clarification) may be made only by a pull request
+  approved by a maintainer, with its exact diff quoted in the changelog below.
+  If any reviewer considers an erratum to change a decision, it is substantive.
 - Any **substantive** change creates protocol version `2`. It applies only to a
   later run, never retroactively.
+- A protocol version change after a dataset's first collection round has begun
+  **ends that dataset**. The data collected so far is kept and published as
+  collected under the earlier version. Collection under the new version starts
+  a new dataset (for example `mainnet-v2`) with new windows.
 - `main` may continue to change after `eval-build-v1`. Run 1 always evaluates
   the tagged build.
+- **Run 1 is published whatever its results, and is never replaced.** A later
+  build is evaluated only as a later run, on samples collected after that build
+  is tagged.
+- The labelling-guide version used for a dataset is fixed before labelling of
+  that dataset begins, and does not change during labelling.
 
 ## 18. Open parameters
 
@@ -544,10 +697,11 @@ To be fixed by #19 from the population pilot, before the freeze:
 |---|---|---|
 | `T` | Target sample count for `mainnet-v1` (at most 100) | *to be set by #19* |
 | `R_max` | Maximum number of collection rounds | *to be set by #19* |
-| `P` | Pages scanned per round | *to be set by #19* |
-| `page_size` | `getTransactions` limit per page | *to be set by #19* (proposed: 200) |
-| `L_seed` | Mainnet ledger whose hash is the seed | *to be set by #19* |
-| RPC provider | Endpoint used for collection | *to be set by #19* |
+| `Δ` | Ledgers per round window (at most 100,000) | *to be set by #19* |
+| `K` | Ledgers sampled per round | *to be set by #19* |
+| `L_seed` | Mainnet ledger anchoring the windows and seeds; at least 1,000 ledgers after the latest ledger at the freeze commit | *to be set by #19* |
+| Collection provider | RPC endpoint used for collection; must retain at least 120,000 ledgers | *to be set by #19* |
+| Fallback provider | RPC endpoint used by §7.1 and for seed verification; must retain at least 120,000 ledgers | *to be set by #19* |
 
 ## 19. Methodological rules
 
@@ -574,3 +728,4 @@ These rules are binding. No other section may be read as relaxing them.
 | Version | Change |
 |---|---|
 | `1-draft` | Initial draft (#18) |
+| `1-draft` (revision 2) | Review corrections before freeze: whole-ledger sampling with fixed windows and per-round seeds; capture retries and fallback; replay-verified labels and ground truth restricted to construction; constructed-dataset tautology; integrity errors; calibration wording; headline and secondary figures; hedged answers; leakage controls; versioning; reproducibility records |

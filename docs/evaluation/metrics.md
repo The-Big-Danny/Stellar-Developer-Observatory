@@ -45,8 +45,8 @@ Sample sets:
 | **S_ind** | `INDETERMINATE` |
 | **S_oot** | `OUT_OF_TAXONOMY` |
 
-Integrity errors ([protocol.md §11](protocol.md#11-prediction)) belong to no
-set. They are listed, never scored.
+Integrity errors ([protocol.md §11](protocol.md#11-prediction)) are handled by
+§3.1. Unless §3.1 says otherwise, they belong to no set.
 
 A proportion `k / n` with `n = 0` is **undefined** and reported as `n/a`, never
 as 0 or 1.
@@ -80,6 +80,20 @@ unknown rate = insufficient-evidence rate + unsupported rate
 
 A run report checks both identities and fails to generate if either is
 violated.
+
+### 3.1 Integrity errors
+
+An **integrity error** is a sample that, at prediction time, fails to decode,
+causes the analysis to panic, or yields `NotAFailure`. Every integrity error is
+listed individually. Every figure in §3 is reported in two treatments:
+
+| Treatment | Rule |
+|---|---|
+| **Excluding integrity errors** | Integrity errors are removed from N and from every sentinel set |
+| **Integrity errors as wrong answers** | Each integrity error stays in the set its reference label belongs to. In N it counts as answered and not correct, so it adds to the wrong-answer rate and never to top-1 accuracy. This treatment therefore overstates coverage, and the report says so. In a sentinel set its outcome is **integrity error**, counted with sentinel wrong answers. |
+
+Both identities above hold in both treatments. If any integrity error occurs,
+the run is **flagged**, and the flag is quoted with every headline figure.
 
 ## 4. Ranking metrics
 
@@ -124,7 +138,7 @@ Each sentinel sample receives exactly one **outcome**:
 
 | Reference label | `Explained` | `InsufficientEvidence` | `Unsupported` |
 |---|---|---|---|
-| `INDETERMINATE` | **overclaim** | correct abstention | correct abstention |
+| `INDETERMINATE` | `conf = Possible`: **hedged answer** · `conf ∈ {Likely, Confirmed}`: **overclaim** | correct abstention | correct abstention |
 | `OUT_OF_TAXONOMY` | **wrong answer** | acceptable abstention | correct abstention |
 | `AMBIGUOUS` with set `K` | `pred ∈ K` and `conf ≠ Confirmed`: **consistent** · `pred ∈ K` and `conf = Confirmed`: **overclaim** · `pred ∉ K`: **wrong answer** | correct abstention | acceptable abstention |
 
@@ -134,24 +148,39 @@ wrong answer listed individually.
 | Metric | Definition |
 |---|---|
 | **Overclaim count** | Samples with outcome overclaim |
+| **Hedged-answer count** | Samples with outcome hedged answer, each listed individually |
 | **Correct-abstention count** | Samples with outcome correct abstention |
-| **Sentinel wrong-answer count** | Samples in S_amb ∪ S_oot with outcome wrong answer |
+| **Sentinel wrong-answer count** | Samples in S_amb ∪ S_oot with outcome wrong answer, plus, in the second treatment of §3.1, integrity errors in any sentinel set |
 
 `Confirmed` on an `AMBIGUOUS` sample is an overclaim: the evidence was judged
 unable to separate the classes, so a confirmed single cause claims more than the
 evidence supports.
 
+`Possible` on an `INDETERMINATE` sample is a hedged answer, not an overclaim:
+`Possible` means the cause is consistent with the evidence but not established,
+which is what `INDETERMINATE` records. Hedged answers are not misses, but each
+is listed.
+
 ## 7. Calibration
 
-Calibration is computed over **N** only. Sentinel samples have no single
-reference class; overclaims on them are reported in §6 beside the calibration
-table.
+Calibration is computed over **N** only, always excluding integrity errors,
+which have no confidence level. Sentinel samples have no single reference
+class; overclaims on them are reported in §6 beside the calibration table.
 
 For each confidence level `L` ∈ {`Confirmed`, `Likely`, `Possible`}:
 
 - `n_L = |{x ∈ N : answered(x) ∧ conf(x) = L}|`
 - `k_L = |{x ∈ N : answered(x) ∧ conf(x) = L ∧ correct(x)}|`
 - **Observed accuracy** `k_L / n_L`, with a Wilson 95% interval `[lo_L, hi_L]`.
+
+Confidence levels are defined by the evidence each rule requires
+([docs/architecture/rules.md](../architecture/rules.md)). Calibration does not
+redefine them, and **assigns no probability to any individual diagnosis**.
+
+A **target** is a pre-registered minimum proportion of correct top-1 answers
+among all answers given at one confidence level, on one dataset. It states what
+that level's evidence requirements are expected to deliver **in aggregate**, not
+the chance that any particular answer is correct.
 
 **Pre-registered targets:**
 
@@ -161,23 +190,31 @@ For each confidence level `L` ∈ {`Confirmed`, `Likely`, `Possible`}:
 | `Likely` | 0.70 |
 | `Possible` | no target |
 
-**Status**, applied in this order:
+**Status**, applied in this order. Each status uses one side of a two-sided 95%
+Wilson interval (§11), so each is a one-sided test at the 2.5% level:
 
-| Status | Condition |
-|---|---|
-| **insufficient support** | `n_L < 20` |
-| **meets target** | `lo_L ≥ target` |
-| **below target** | `hi_L < target` |
-| **inconclusive** | otherwise: the interval contains the target |
+| Status | Condition | Meaning |
+|---|---|---|
+| **insufficient support** | `n_L < 20` | Too few answers at this level to assess |
+| **meets target** | `lo_L ≥ target` | The observed proportion supports the target even at the low end of its interval |
+| **below target** | `hi_L < target` | The observed proportion is too low for the target to be plausible |
+| **inconclusive** | otherwise | The interval contains the target: the data neither support nor contradict it. **Inconclusive is not a pass.** |
 
-`Possible` receives only **insufficient support** or its observed accuracy, with
-no status against a target.
+`Possible` receives only **insufficient support** or its observed proportion,
+with no status against a target.
 
-A level cannot meet a target by its point estimate alone. **For `Confirmed`,
-meeting 0.95 requires at least 73 answers, all correct**, because the Wilson
-lower bound for `n` correct out of `n` is `n / (n + z²)`, which first reaches
-0.95 at `n = 73`. With realistic sample sizes, `Confirmed` will most likely be
-**inconclusive**, and the report must say so rather than round it into a pass.
+A level never meets its target on its point estimate alone. With `k = n`, the
+Wilson lower bound is exactly `n / (n + z²)`, which first reaches 0.95 at
+`n = 73` (72 gives 0.9494; 73 gives 0.9500). So **`Confirmed` meets 0.95 only
+with at least 73 answers at that level and none wrong**. With one wrong answer
+it needs at least 110 answers; with two, at least 142.
+
+At the sample sizes M5 can reach, `Confirmed` cannot realistically meet its
+target, and its informative outcome is **below target**: for example 17 or
+fewer correct of 20, or 44 or fewer of 50. For `Likely`, meeting 0.70 needs at
+least 19 correct of 20 or 42 of 50, and below target is 9 or fewer of 20 or 28
+or fewer of 50. Reports present calibration as a test that can show a level
+falls short, **never as certification** of a level.
 
 Calibration is not expected calibration error, because the three levels are
 ordinal, not probabilities.
@@ -214,14 +251,34 @@ Over samples with two independent labels, before adjudication:
 
 Both are reported overall and per final evidence tier.
 
-## 10. Breakdowns
+## 10. Headline and secondary figures
 
-Every figure in §3–§8 is reported:
+The **headline figures** are exactly four, all on `mainnet-v1` over all of N:
 
-- **overall**, and separately for **tier A**, **tier B** and **tier C** samples,
-  by final `evidence_tier`. Tier A figures are described as agreement with
-  independent ground truth; tier B and C figures as agreement with expert
-  reference labels;
+1. top-1 accuracy;
+2. coverage;
+3. wrong-answer rate;
+4. unknown rate.
+
+Each is reported in both integrity-error treatments (§3.1).
+
+**Every other figure is secondary** and descriptive: every breakdown below, and
+every ranking, per-class, sentinel, calibration, name-accuracy, agreement and
+`constructed-v1` figure. No correction for multiple comparisons is applied to
+secondary figures, so a secondary figure that looks unusually good or bad may be
+chance.
+
+- A secondary figure is never quoted without the headline figures beside it.
+- **No secondary figure or subset becomes a headline after results are known.**
+  The headline set is fixed by this section and changes only in a later
+  protocol version.
+
+Every figure in §3–§8 is also reported as a secondary breakdown:
+
+- **by evidence tier and source**: tier A `construction` (agreement with
+  independent ground truth), tier A `replay` (agreement with replay-verified
+  reference labels), tier B and tier C (agreement with expert reference labels).
+  Tier A figures are never combined across the two sources;
 - for `mainnet-v1`, also on the subset whose final `label_certainty` is
   `certain`;
 - for `mainnet-v1`, also on the subset meeting the independence requirement,
@@ -289,7 +346,9 @@ Reference values, to four decimal places:
 | s15 | `OUT_OF_TAXONOMY` | C | Explained | FootprintEntryMissing (Possible) |
 
 So N = {s1 … s9}, |N| = 9; S_ind = {s10, s11}; S_amb = {s12, s13};
-S_oot = {s14, s15}.
+S_oot = {s14, s15}. s8's tier A label has `reference_label_source: replay`
+(construction labels occur only in `constructed-v1`). No sample has an
+integrity error, so both treatments of §3.1 give the same figures.
 
 ### 13.2 Headline metrics (§3)
 
@@ -347,7 +406,8 @@ support below 5, so each sample would be listed individually instead (§5).
 | s14 | OUT_OF_TAXONOMY | Unsupported | correct abstention |
 | s15 | OUT_OF_TAXONOMY | FootprintEntryMissing (Possible) | **wrong answer** |
 
-Overclaim count **2** (s11, s13); correct-abstention count **2** (s10, s14);
+Overclaim count **2** (s11, s13); hedged-answer count **0** (s11 answered
+`Likely`, not `Possible`); correct-abstention count **2** (s10, s14);
 sentinel wrong-answer count **1** (s15).
 
 ### 13.6 Calibration (§7)
@@ -373,11 +433,12 @@ wrong, but that does not affect this metric.
 
 | Tier | Samples in N | Top-1 accuracy | Coverage |
 |---|---|---|---|
-| A (independent ground truth) | s8 | 1 / 1 (1.000) | 1 / 1 (1.000) |
+| A, construction (independent ground truth) | — | n/a | n/a |
+| A, replay (replay-verified reference labels) | s8 | 1 / 1 (1.000) | 1 / 1 (1.000) |
 | B (expert reference labels) | s3, s4, s5, s7 | 2 / 4 (0.500) | 3 / 4 (0.750) |
 | C (expert reference labels) | s1, s2, s6, s9 | 2 / 4 (0.500) | 3 / 4 (0.750) |
 
-The tiers partition N: 1 + 4 + 4 = 9 ✓.
+The tiers and sources partition N: 0 + 1 + 4 + 4 = 9 ✓.
 
 ### 13.9 Labeller agreement (§9)
 
@@ -407,7 +468,9 @@ A **miss** is any of:
 - a sample in N that is not `correct`, whether it answered wrongly or
   abstained;
 - a sentinel sample whose outcome is **overclaim** or **wrong answer**;
-- an integrity error.
+- an integrity error (§3.1).
+
+Hedged answers (§6) are not misses; they are listed separately.
 
 **Every miss is published** in `misses.json` and in `report.md`, with:
 
