@@ -129,7 +129,7 @@ A transaction passing all seven is **eligible**.
 |---|---|
 | `cap_code_cluster` | Accepting it would put a second sample in its `code_cluster` |
 | `cap_submitter_cluster` | Accepting it would put a fourth sample in its `submitter_cluster` |
-| `not_selected_target_reached` | Eligible, but the target sample count was already reached |
+| `not_selected_target_reached` | Eligible, but the ceiling `T` (§18.1) was already reached |
 | `capture_failed` | Accepted, but its transaction could not be recorded after the retry and fallback procedure (§7.1) |
 
 ## 5. Deduplication
@@ -700,15 +700,32 @@ in [the pilot note](../research/m5-population-pilot.md); the summary is here.
 
 | Parameter | Meaning | Value |
 |---|---|---|
-| `T` | Target sample count for `mainnet-v1` (at most 100) | **100** |
+| `T` | **Ceiling** on the sample count for `mainnet-v1` (at most 100) | **100** |
 | `R_max` | Maximum number of collection rounds | **8** |
 | `Δ` | Ledgers per round window (at most 100,000) | **60,000** |
 | `K` | Ledgers sampled per round | **3,000** |
-| `L_seed` | Mainnet ledger anchoring the windows and seeds; at least 1,000 ledgers after the latest ledger at the freeze commit | **65,000,000** |
+| `L_seed` | Mainnet ledger anchoring the windows and seeds; at least 1,000 ledgers after the latest ledger at the freeze commit | **65,200,000** |
 | Collection provider | RPC endpoint used for collection; must retain at least 120,000 ledgers | **`https://rpc.lightsail.network`** |
 | Fallback provider | RPC endpoint used by §7.1 and for seed verification; must retain at least 120,000 ledgers | **`https://mainnet.sorobanrpc.com`** |
 
-### 18.1 What the pilot projects
+### 18.1 `T` is a ceiling
+
+`T` is the point at which selection stops accepting samples (§6.4) and
+collection stops (§6.5). It is **not** a target, an expectation, or a minimum,
+and no figure may describe the dataset as falling short of it. A dataset of
+fewer than `T` samples is the protocol working as designed: the population, the
+caps and `R_max` decide the count, and §6.5 publishes it.
+
+`T` is set at the maximum the protocol allows precisely because it is a
+ceiling. A lower `T` could only truncate collection if the population turned
+out richer than the pilot measured; it could never add a sample.
+
+Where §6.5, §14 and §19 require publishing "any shortfall from `T`", that means
+publishing the count and its distance from `T` as facts. It does not make the
+distance a failure to report against, and §18.2 records in advance that the
+distance is expected.
+
+### 18.2 What the pilot projects
 
 Pre-registered here, before any evaluation data exists, so that the eventual
 count cannot be presented as what was expected all along:
@@ -758,4 +775,4 @@ These rules are binding. No other section may be read as relaxing them.
 |---|---|
 | `1-draft` | Initial draft (#18) |
 | `1-draft` (revision 2) | Review corrections before freeze: whole-ledger sampling with fixed windows and per-round seeds; capture retries and fallback; replay-verified labels and ground truth restricted to construction; constructed-dataset tautology; integrity errors; calibration wording; headline and secondary figures; hedged answers; leakage controls; versioning; reproducibility records |
-| `1` | Parameters filled in from the population pilot (#19), with its projected yield pre-registered in §18.1. No methodological change. |
+| `1` | Parameters filled in from the population pilot (#19), with `T` defined as a ceiling (§18.1) and the projected yield pre-registered in §18.2. No methodological change. |

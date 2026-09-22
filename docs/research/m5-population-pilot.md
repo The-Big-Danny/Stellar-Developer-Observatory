@@ -28,8 +28,9 @@ records it is built from carry no cause class, verdict, confidence or rule id.
    ones.
 5. **Therefore `T = 100` is not reachable** in any round count this project can
    wait for. The parameters are set to collect what the population supports;
-   the shortfall is pre-registered here, before any collection, and will be
-   published with the run.
+   `T = 100` stays as a **ceiling** (protocol §18.1), the gap between it and
+   the expected count is pre-registered here before any collection, and the
+   actual count is published with the run.
 
 Nothing was padded, substituted or hand-picked to make a number look better,
 and no cap was relaxed to raise the yield.
@@ -283,17 +284,37 @@ Two things follow, and both are recorded rather than smoothed over:
 | `Δ` | 60,000 ledgers (about 3.5 days) | Leaves 59,979 ledgers — over three days — between a window closing and its data ageing out of a 120,000-ledger retention, so one outage cannot cost a round. Round yield is governed by calendar span, not by window size, so a larger `Δ` buys nothing but risk. |
 | `K` | 3,000 ledgers | 5% of a 60,000-ledger window: above the density at which census 2 found its extra clusters (§7), and past the point where more scanning pays for itself. Census 2 read 1,676 ledgers in about 2.6 hours, so a round costs a few hours of scanning inside a scan slot of over three days. |
 | `R_max` | 8 | Eight consecutive windows span about 28 days. At the measured turnover this projects about 45–60 samples. More rounds would add about 4 samples each; the maintainer can pre-register a larger `R_max` before the freeze if the calendar allows. |
-| `T` | 100 | Unchanged as the protocol's target, and **not expected to be reached**: see §9. Setting it lower would cap a dataset that the population might yet exceed; the stopping rule (§6.5) publishes the shortfall. |
-| `L_seed` | 65,000,000 | Comfortably more than 1,000 ledgers after the freeze commit: at the measured mean close time of 5.091 s it closes about 2026-10-18, roughly 26 days after this pilot. Round 1's window then closes about 2026-10-22 and must be scanned by about 2026-10-25. |
+| `T` | 100 | A **ceiling**, not a target or a minimum — protocol §18.1 now says so explicitly. It is **not expected to be reached** (§9). It is left at the maximum because a lower ceiling could only truncate collection if the population turned out richer than measured; it could never add a sample. The count actually collected is published under §6.5. |
+| `L_seed` | 65,200,000 | 636,879 ledgers after this pilot, far more than the 1,000 the protocol requires. At the measured mean close time of 5.080 s it closes about 2026-10-30, and round 1 must then be scanned between about 2026-11-02 and 2026-11-06 — 41 days of lead time for #20, #21, #2 and the `eval-build-v1` tag. The first candidate, 65,000,000, left only 29 days; see §8.1. |
 | Collection provider | `https://rpc.lightsail.network` | Retains 120,960 ledgers; read 1,000 whole ledgers with zero failed requests, about three times faster than the alternative. |
 | Fallback provider | `https://mainnet.sorobanrpc.com` | Retains 120,960 ledgers; answers identically (§3, check 4). It closed connections for a sustained period on 2026-09-17 and is the slower of the two, which is why it is the fallback rather than the collection provider. |
 
-**`L_seed` presumes a schedule.** Round 1 can only be scanned in a fixed
-interval of about three days, roughly a month from now, and only by a tagged
-`eval-build-v1` (#25). If #20–#24 are not finished by then, round 1 is recorded
-as `round_missed` and one of the eight rounds is spent for nothing. `L_seed` is
-the one parameter that should be revisited before the merge that freezes this
-protocol, because afterwards it cannot change without a protocol version 2.
+### 8.1 The schedule `L_seed` fixes
+
+Every window and scan interval follows from `L_seed`, `Δ` and the 120,000-ledger
+retention the protocol requires. At the measured mean close time of 5.080 s,
+from ledger 64,563,121 which closed 2026-09-22 18:23Z:
+
+| | Ledgers | Approximate date |
+|---|---|---|
+| `L_seed` closes | 65,200,000 | 2026-10-30 05:05Z |
+| Round 1 window `W_1` | 65,200,001 – 65,260,000 | closes 2026-11-02 17:46Z |
+| Round 1 scan interval | from `S_1 + 20` = 65,260,021 to 65,320,001 | 2026-11-02 17:47Z – 2026-11-06 06:25Z |
+| Round 8 window `W_8` | 65,620,001 – 65,680,000 | closes 2026-11-27 10:26Z |
+| Round 8 scan deadline | 65,740,001 | 2026-11-30 23:05Z |
+
+Two consequences worth stating plainly:
+
+- **Each round's scan slot is 3.53 days** (120,000 − `Δ` − 21 ledgers), and a
+  round that misses its slot is `round_missed`: never rescheduled, and counted
+  against `R_max`. Round 1 is worth six or seven later rounds, because it
+  captures the head of the distribution while later rounds add roughly 4
+  clusters each — so the schedule risk is concentrated in one date.
+- **Round 1 needs a tagged `eval-build-v1` by 2026-11-02**, which means #20,
+  #21 and #2 complete before then: 41 days from this pilot. `L_seed` was moved
+  from 65,000,000 to 65,200,000 for exactly this reason, before the freeze,
+  because afterwards it cannot change without a protocol version 2 — and after
+  round 1 begins, a version change ends the dataset (§17).
 
 ## 9. Is 100 samples feasible? No
 
