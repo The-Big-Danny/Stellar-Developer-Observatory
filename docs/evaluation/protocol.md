@@ -1,11 +1,11 @@
 # M5 evaluation protocol
 
-> **Status: DRAFT — protocol version `1-draft`.**
+> **Status: protocol version `1`.**
 >
-> This document is not frozen. It becomes version `1` when issue #19 fills in
-> the [open parameters](#18-open-parameters) from the population pilot, and the
-> merge commit is tagged `eval-protocol-v1`. No evaluation data may be collected
-> before then.
+> The [parameters](#18-parameters) are filled in from the population pilot
+> (#19). The protocol is **frozen** when the merge commit of #19 is tagged
+> `eval-protocol-v1`; until that tag exists it is still changeable, and no
+> evaluation data may be collected.
 >
 > **This document contains no results.** Nothing here states, estimates or
 > predicts SDO's accuracy.
@@ -129,7 +129,7 @@ A transaction passing all seven is **eligible**.
 |---|---|
 | `cap_code_cluster` | Accepting it would put a second sample in its `code_cluster` |
 | `cap_submitter_cluster` | Accepting it would put a fourth sample in its `submitter_cluster` |
-| `not_selected_target_reached` | Eligible, but the target sample count was already reached |
+| `not_selected_target_reached` | Eligible, but the ceiling `T` (§18.1) was already reached |
 | `capture_failed` | Accepted, but its transaction could not be recorded after the retry and fallback procedure (§7.1) |
 
 ## 5. Deduplication
@@ -191,7 +191,7 @@ SDO's diagnosis.
 
 ### 6.1 Rounds and windows
 
-A dataset is collected in up to `R_max` rounds ([§18](#18-open-parameters)).
+A dataset is collected in up to `R_max` rounds ([§18](#18-parameters)).
 Round windows are fixed in protocol v1, relative to `L_seed` (§6.2):
 
 ```
@@ -244,7 +244,7 @@ decoded to 32 bytes.
 
 ### 6.3 Ledger selection
 
-Round `r` samples `K` ledgers ([§18](#18-open-parameters)). Ledger `i`
+Round `r` samples `K` ledgers ([§18](#18-parameters)). Ledger `i`
 (0-based) is:
 
 ```
@@ -567,6 +567,10 @@ against:
 - `evaluation/exclusions/pilot-v1.txt` (#19);
 - any further list under `evaluation/exclusions/` committed before the freeze.
 
+Each list under `evaluation/exclusions/` is a text file of one lowercase
+64-character hexadecimal transaction hash per line. Blank lines, and lines
+beginning with `#`, are comments.
+
 A CI guard (#20) fails if any evaluation sample's hash appears under `crates/`
 or `fixtures/`.
 
@@ -666,7 +670,7 @@ The analysis crate remains free of I/O throughout.
 
 | Freeze | When | What it fixes |
 |---|---|---|
-| `eval-protocol-v1` | When #19 merges, with the open parameters filled | This protocol and `metrics.md` |
+| `eval-protocol-v1` | When #19 merges, with the parameters filled | This protocol and `metrics.md` |
 | `eval-build-v1` | Before the first `mainnet-v1` collection round (#25); must include #2 | The code that collects, decodes and predicts |
 
 - The tags `eval-protocol-v1` and `eval-build-v1` are **immutable**: never moved,
@@ -689,19 +693,61 @@ The analysis crate remains free of I/O throughout.
 - The labelling-guide version used for a dataset is fixed before labelling of
   that dataset begins, and does not change during labelling.
 
-## 18. Open parameters
+## 18. Parameters
 
-To be fixed by #19 from the population pilot, before the freeze:
+Fixed by #19 from the population pilot. Every value and its justification are
+in [the pilot note](../research/m5-population-pilot.md); the summary is here.
 
 | Parameter | Meaning | Value |
 |---|---|---|
-| `T` | Target sample count for `mainnet-v1` (at most 100) | *to be set by #19* |
-| `R_max` | Maximum number of collection rounds | *to be set by #19* |
-| `Δ` | Ledgers per round window (at most 100,000) | *to be set by #19* |
-| `K` | Ledgers sampled per round | *to be set by #19* |
-| `L_seed` | Mainnet ledger anchoring the windows and seeds; at least 1,000 ledgers after the latest ledger at the freeze commit | *to be set by #19* |
-| Collection provider | RPC endpoint used for collection; must retain at least 120,000 ledgers | *to be set by #19* |
-| Fallback provider | RPC endpoint used by §7.1 and for seed verification; must retain at least 120,000 ledgers | *to be set by #19* |
+| `T` | **Ceiling** on the sample count for `mainnet-v1` (at most 100) | **100** |
+| `R_max` | Maximum number of collection rounds | **8** |
+| `Δ` | Ledgers per round window (at most 100,000) | **60,000** |
+| `K` | Ledgers sampled per round | **3,000** |
+| `L_seed` | Mainnet ledger anchoring the windows and seeds; at least 1,000 ledgers after the latest ledger at the freeze commit | **65,200,000** |
+| Collection provider | RPC endpoint used for collection; must retain at least 120,000 ledgers | **`https://rpc.lightsail.network`** |
+| Fallback provider | RPC endpoint used by §7.1 and for seed verification; must retain at least 120,000 ledgers | **`https://mainnet.sorobanrpc.com`** |
+
+### 18.1 `T` is a ceiling
+
+`T` is the point at which selection stops accepting samples (§6.4) and
+collection stops (§6.5). It is **not** a target, an expectation, or a minimum,
+and no figure may describe the dataset as falling short of it. A dataset of
+fewer than `T` samples is the protocol working as designed: the population, the
+caps and `R_max` decide the count, and §6.5 publishes it.
+
+`T` is set at the maximum the protocol allows precisely because it is a
+ceiling. A lower `T` could only truncate collection if the population turned
+out richer than the pilot measured; it could never add a sample.
+
+Where §6.5, §14 and §19 require publishing "any shortfall from `T`", that means
+publishing the count and its distance from `T` as facts. It does not make the
+distance a failure to report against, and §18.2 records in advance that the
+distance is expected.
+
+### 18.2 What the pilot projects
+
+Pre-registered here, before any evaluation data exists, so that the eventual
+count cannot be presented as what was expected all along:
+
+- One round is projected to yield about **25 to 30** samples, and each later
+  round about **4** more, so `R_max = 8` projects roughly **45 to 60** samples.
+- **`T = 100` is not expected to be reached.** The limit is the population:
+  one retention window held 28 distinct eligible `code_cluster`s, and the cap
+  of one sample per cluster binds long before 100. The actual count, whatever
+  it is, is published under §6.5, and no sample is added, duplicated or
+  hand-picked to approach `T`.
+- With 50 answers, the half-width of a Wilson 95% interval is about 13
+  percentage points at a proportion of 0.5, and about 9 at 0.9. Every headline
+  figure will carry an interval that wide.
+- `Confirmed` cannot reach the 73 answers its 0.95 target needs
+  ([metrics.md §7](metrics.md#7-calibration)), so its calibration status will
+  at best be *inconclusive*, and inconclusive is not a pass.
+
+Raising the yield by relaxing a cap, by clustering on contract IDs, or by
+sampling transactions rather than whole ledgers would each be a **substantive**
+change under §17, and would create protocol version 2 rather than a larger
+version 1 dataset.
 
 ## 19. Methodological rules
 
@@ -729,3 +775,4 @@ These rules are binding. No other section may be read as relaxing them.
 |---|---|
 | `1-draft` | Initial draft (#18) |
 | `1-draft` (revision 2) | Review corrections before freeze: whole-ledger sampling with fixed windows and per-round seeds; capture retries and fallback; replay-verified labels and ground truth restricted to construction; constructed-dataset tautology; integrity errors; calibration wording; headline and secondary figures; hedged answers; leakage controls; versioning; reproducibility records |
+| `1` | Parameters filled in from the population pilot (#19), with `T` defined as a ceiling (§18.1) and the projected yield pre-registered in §18.2. No methodological change. |

@@ -155,8 +155,13 @@ partly complete. The missing fixtures are tracked in
 
 **Goal:** know how often we are right, and publish it.
 
-- Grow the corpus to ~100 real failed transactions, deduplicated by contract
-- Measure top-ranked-cause accuracy against hand-labelled ground truth
+- Collect a deduplicated mainnet evaluation dataset. The
+  [population pilot](docs/research/m5-population-pilot.md) (#19) measured what
+  mainnet can actually supply: about 28 distinct failing contract codes per
+  retention window, so ~100 samples is **not** reachable, and roughly 45-55
+  over eight rounds is. The actual count is published, shortfall included.
+- Measure top-ranked-cause accuracy against independently produced reference
+  labels
 - **Publish the number including the misses** — this is itself a differentiator
 - Calibrate confidence levels against observed accuracy
 - Harden decoding: explicit XDR depth and length limits, fuzzing
