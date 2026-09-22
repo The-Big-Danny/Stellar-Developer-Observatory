@@ -1159,6 +1159,7 @@ dependencies = [
 name = "soroban-failure-rpc"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "flate2",
  "serde",
  "serde_json",
  "soroban-failure-analysis",

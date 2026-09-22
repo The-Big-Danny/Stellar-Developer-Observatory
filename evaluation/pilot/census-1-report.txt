@@ -1,0 +1,104 @@
+# pilot_report --jsonl census-1.jsonl.gz --ledger-log census-1-ledgers.jsonl.gz --split 64501205 --trials 200
+# M5.2 census summary
+
+ledgers read completely: 1000 (64441630..64560498); still unreadable: 0
+transactions read: 266095
+failed Soroban transactions recorded: 6221
+
+## Funnel (failed Soroban, checks in protocol order)
+
+  unexpected_operation_count: 0
+  no_diagnostic_events: 0
+  no_root_contract_invocation: 0
+  code_identity_instance_unavailable: 0
+  code_identity_not_in_footprint: 0
+  code_identity_unsupported_executable: 0
+  eligible (before check 5, development data): 6221
+  of instance_unavailable: 0 not found (population), 0 lookup failed (run artefact)
+
+## code_cluster
+
+  distinct: 28; top 10 hold 95.0% of eligible
+      3566  wasm:db2c14290d4964e3805f2527dd132939ba5fb3fccac56b30bfab8fd091011627
+       560  wasm:70fe44694c9fe6b0abc69a6da4858fc2aaba04fa10492a466a1d426d04ca8560
+       452  wasm:a883b221d8bea1050cfe6d4e9c27dffc43c54bf110f4d1f55d1c0d41d13d0c2a
+       345  wasm:e526a55ee9a4b66583da2e534a349eb7cc3c1dac49400aa3aa475d2f533bd141
+       316  wasm:12fca5a7a96577273b6d4184cf9c984036cda0e8f0594747e7b2933dced37ee6
+       166  wasm:1557a16d408aa08557034538b75ac64e2655af3909e8065ff2de75a425d0a67d
+       149  wasm:414e06172b1a83ad55c8b7977e511eb26c4dd51b476d9c2c671f24e286aeb6d8
+       146  wasm:ae0da5a84b15805c5c7931ac567a8d1b34be3f26b483993d9ff80cb2c3de9852
+       122  wasm:06f4207b0c9ef78cc595e075ded8fa40e73fdb8346e5f9281068a2d4ba1e5037
+        86  wasm:23013860a4bd6b69cc13374c55cdb017351f5a436e58c23a4fc7df34e14b684e
+  seen exactly once: 3
+
+## submitter_cluster
+
+  distinct: 613; top 10 hold 76.5% of eligible
+      4357  GA2JRQOF6EA3HQWDCEDBPPMLYPJCFLDDGYZLEQGMS5SOBQIB3BAFHVAW
+       101  GDDYEOYYSZ5R3X6S2YRZ3452TD4KTXH5525UFRYCB7BDRBBVVBEQB6ZQ
+        71  GBY4ESK4RD47RKBJW5OZ5V5X5P4LKTIQA5LFE5AMEQ47PNRSCDBUQWV6
+        47  GAGKELDSPGQ7VKMN2MXCXSPLMV6XYEGSDVO46XQTTH5TZ3Y3E5NJMELX
+        42  GASNOA72CECDUZ5GEUK6WFINSASEG6R3WYZB2DE2CGDU7YI7GC2QPSFX
+        40  GCGPYYULS3PYU3GN4NWU4JLXT4LMN53SINEFRXWDTBXHZYN2QHENMFCT
+        31  GDQCVAXKDVCCFKUDHBKH6M555T7NTBNV6KXVCCTB3IAYIPKXW5U3DKTC
+        24  GCWLZQIUWFLJZS6OJTAGLEI3ZUDMK6F42XAABWFGC2PZRP6MMCDTNVRJ
+        23  GDCRS734CFF2VGN6Q3N5WVK5WROOII4KRTUKPFTM7T73RBLO3UZZ2ZWM
+        23  GDXGYASWTNTFGHF4DC5Q4F5E33GEDGS2PUIM7NUMB4CAVPIETYNBYARD
+  seen exactly once: 267
+
+eligible fee-bumped: 4678 of 6221 (75.2%)
+
+## Raw terminal error of eligible transactions
+
+      3756  Storage/ExceededLimit
+      1474  Contract
+       864  Auth/ExistingValue
+        80  WasmVm/InvalidAction
+        28  Budget/ExceededLimit
+        14  Auth/InvalidInput
+         4  (none)
+         1  Auth/InvalidAction
+
+## Projected single-round yield by K (200 random subsets each)
+
+       K    mean      p5     p50     p95
+      50    12.7       9      13      17
+     100    16.3      13      16      20
+     200    19.3      15      19      23
+     300    21.4      19      21      24
+     500    24.1      22      24      26
+     750    25.8      24      26      27
+    1000    27.0      27      27      27
+
+## Distinct eligible code clusters vs ledgers read (ledger order)
+
+  after   100 ledgers:   16 distinct
+  after   200 ledgers:   19 distinct
+  after   300 ledgers:   20 distinct
+  after   400 ledgers:   22 distinct
+  after   500 ledgers:   24 distinct
+  after   600 ledgers:   25 distinct
+  after   700 ledgers:   25 distinct
+  after   800 ledgers:   26 distinct
+  after   900 ledgers:   27 distinct
+  after  1000 ledgers:   28 distinct
+
+## Eligible code clusters not yet seen (incidence, ledgers as units)
+
+  observed 28; in exactly one sampled ledger (Q1) 4, in exactly two (Q2) 2
+  Chao2 lower bound for the window: 32.0
+  expected distinct at 1500 ledgers: 29.6
+  expected distinct at 2000 ledgers: 30.5
+  expected distinct at 3000 ledgers: 31.5
+
+## Two-round projection, split at ledger 64501205, caps cumulative
+
+  round 1: 502 ledgers, 3429 eligible, mean accepted 23.0
+  round 2: 498 ledgers, 2792 eligible, mean newly accepted 4.0
+  code clusters: 24 in round 1, 24 in round 2, 20 in both, 4 new in round 2
+
+## Recurrence against a prior window
+
+  prior eligible code clusters: 18; here: 28; in both: 15; new here: 13
+
+code clusters seen from more than one submitter: 18 of 28

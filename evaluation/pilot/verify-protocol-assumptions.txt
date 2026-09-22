@@ -1,0 +1,55 @@
+# verify_protocol_assumptions, run 2026-09-22T16:00:28Z
+# cargo run --release -p soroban-failure-rpc --example verify_protocol_assumptions -- --samples 6
+
+1. Retention (protocol §6.1): at least 120000 ledgers
+  PASS  https://mainnet.sorobanrpc.com: retains 120960 ledgers, 64440451..64561410
+  PASS  https://rpc.lightsail.network: retains 120960 ledgers, 64440451..64561410
+
+2. Seed ledger 64500930 (§6.2): `hash` is the ledger header hash
+  PASS  https://mainnet.sorobanrpc.com: hash format: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+  PASS  https://mainnet.sorobanrpc.com: header entry agrees with the reported hash: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+  PASS  https://mainnet.sorobanrpc.com: ledger 64500931 names it as previousLedgerHash: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+  PASS  https://rpc.lightsail.network: hash format: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+  PASS  https://rpc.lightsail.network: header entry agrees with the reported hash: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+  PASS  https://rpc.lightsail.network: ledger 64500931 names it as previousLedgerHash: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+
+3. Independent agreement (§6.2): providers report the same hash
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f vs a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+
+4. Whole-ledger reads (§6.3): the cursor reaches the end of a ledger, on 6 ledgers
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64500930 to its end: 151 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64500930 to its end: 151 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 151 vs 151 transactions
+  PASS  ledger 64500930: read set equals the ledger's own close meta: 151 read, 151 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64500930: pages of 7 give the same set as pages of 200: 151 vs 151 transactions
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64440951 to its end: 289 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64440951 to its end: 289 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 289 vs 289 transactions
+  PASS  ledger 64440951: read set equals the ledger's own close meta: 289 read, 289 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64440951: pages of 7 give the same set as pages of 200: 289 vs 289 transactions
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64461010 to its end: 205 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64461010 to its end: 205 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 205 vs 205 transactions
+  PASS  ledger 64461010: read set equals the ledger's own close meta: 205 read, 205 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64461010: pages of 7 give the same set as pages of 200: 205 vs 205 transactions
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64481070 to its end: 239 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64481070 to its end: 239 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 239 vs 239 transactions
+  PASS  ledger 64481070: read set equals the ledger's own close meta: 239 read, 239 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64481070: pages of 7 give the same set as pages of 200: 239 vs 239 transactions
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64501130 to its end: 284 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64501130 to its end: 284 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 284 vs 284 transactions
+  PASS  ledger 64501130: read set equals the ledger's own close meta: 284 read, 284 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64501130: pages of 7 give the same set as pages of 200: 284 vs 284 transactions
+  PASS  https://mainnet.sorobanrpc.com: read ledger 64521190 to its end: 308 transactions
+  PASS  https://rpc.lightsail.network: read ledger 64521190 to its end: 308 transactions
+  PASS  https://rpc.lightsail.network vs https://mainnet.sorobanrpc.com: same transactions: 308 vs 308 transactions
+  PASS  ledger 64521190: read set equals the ledger's own close meta: 308 read, 308 in LedgerCloseMeta, 0 missing, 0 extra
+  PASS  ledger 64521190: pages of 7 give the same set as pages of 200: 308 vs 308 transactions
+
+5. History archive (§6.2): https://history.stellar.org/prd/core-live/core_live_001 publishes the same hash for ledger 64500930
+  PASS  archive vs https://mainnet.sorobanrpc.com: a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f vs a902df572b08060d3354b4bba58d718d4c8d916a96d3b9d31b57060ee0d1223f
+
+40 checks passed, 0 failed
+# exit 0

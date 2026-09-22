@@ -20,12 +20,16 @@
 #![doc(html_root_url = "https://docs.rs/soroban-failure-rpc")]
 
 pub mod client;
+pub mod cluster;
 pub mod contract;
 pub mod decode;
 pub mod error;
 pub mod fixture;
 
 pub use client::RpcClient;
+pub use cluster::{
+    code_cluster, submitter_cluster, CodeIdentity, InstanceLookup, PilotRecord, UnresolvedCode,
+};
 pub use contract::{fetch_specs, ContractSource, SourceError};
 pub use decode::{decode_get_transaction, DecodedTransaction, DiagnosticSource, TransactionStatus};
 pub use error::{DecodeError, RpcError};

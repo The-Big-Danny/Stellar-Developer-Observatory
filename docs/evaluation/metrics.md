@@ -1,6 +1,6 @@
 # M5 evaluation metrics
 
-> **Status: DRAFT — part of protocol version `1-draft`.** Frozen together with
+> **Status: part of protocol version `1`.** Frozen together with
 > [protocol.md](protocol.md) as `eval-protocol-v1`.
 >
 > **This document contains no results.** The worked example in §13 is a

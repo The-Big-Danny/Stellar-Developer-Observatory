@@ -18,6 +18,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 ureq.workspace = true
 
+[dev-dependencies]
+# Only the `verify_protocol_assumptions` example: history archive checkpoint
+# files are gzipped. Already in the lock file through `ureq`.
+flate2 = "1"
+
 [lints.rust]
 missing_docs = "warn"
 unsafe_code = "forbid"

@@ -1,0 +1,98 @@
+# pilot_report --jsonl census-2.jsonl.gz --ledger-log census-2-ledgers.jsonl.gz --only 64443173..64492943 --trials 200
+restricted to ledgers 64443173..=64492943
+
+# M5.2 census summary
+
+ledgers read completely: 1676 (64443173..64492943); still unreadable: 41
+transactions read: 478496
+failed Soroban transactions recorded: 8438
+
+## Funnel (failed Soroban, checks in protocol order)
+
+  unexpected_operation_count: 0
+  no_diagnostic_events: 0
+  no_root_contract_invocation: 0
+  code_identity_instance_unavailable: 0
+  code_identity_not_in_footprint: 1
+  code_identity_unsupported_executable: 0
+  eligible (before check 5, development data): 8437
+  of instance_unavailable: 0 not found (population), 0 lookup failed (run artefact)
+
+## code_cluster
+
+  distinct: 28; top 10 hold 95.9% of eligible
+      4436  wasm:db2c14290d4964e3805f2527dd132939ba5fb3fccac56b30bfab8fd091011627
+      1069  wasm:70fe44694c9fe6b0abc69a6da4858fc2aaba04fa10492a466a1d426d04ca8560
+       666  wasm:a883b221d8bea1050cfe6d4e9c27dffc43c54bf110f4d1f55d1c0d41d13d0c2a
+       555  wasm:e526a55ee9a4b66583da2e534a349eb7cc3c1dac49400aa3aa475d2f533bd141
+       351  wasm:12fca5a7a96577273b6d4184cf9c984036cda0e8f0594747e7b2933dced37ee6
+       291  wasm:1557a16d408aa08557034538b75ac64e2655af3909e8065ff2de75a425d0a67d
+       205  wasm:ae0da5a84b15805c5c7931ac567a8d1b34be3f26b483993d9ff80cb2c3de9852
+       199  wasm:06f4207b0c9ef78cc595e075ded8fa40e73fdb8346e5f9281068a2d4ba1e5037
+       198  wasm:414e06172b1a83ad55c8b7977e511eb26c4dd51b476d9c2c671f24e286aeb6d8
+       117  wasm:c40cf4373da0031ec49ee23de83e902b4ffe38615755caa26b4cab8f1bd8328d
+  seen exactly once: 5
+
+## submitter_cluster
+
+  distinct: 642; top 10 hold 75.7% of eligible
+      5784  GA2JRQOF6EA3HQWDCEDBPPMLYPJCFLDDGYZLEQGMS5SOBQIB3BAFHVAW
+       158  GDDYEOYYSZ5R3X6S2YRZ3452TD4KTXH5525UFRYCB7BDRBBVVBEQB6ZQ
+       124  GAGKELDSPGQ7VKMN2MXCXSPLMV6XYEGSDVO46XQTTH5TZ3Y3E5NJMELX
+        69  GDQCVAXKDVCCFKUDHBKH6M555T7NTBNV6KXVCCTB3IAYIPKXW5U3DKTC
+        67  GCGPYYULS3PYU3GN4NWU4JLXT4LMN53SINEFRXWDTBXHZYN2QHENMFCT
+        56  GASNOA72CECDUZ5GEUK6WFINSASEG6R3WYZB2DE2CGDU7YI7GC2QPSFX
+        37  GDXGYASWTNTFGHF4DC5Q4F5E33GEDGS2PUIM7NUMB4CAVPIETYNBYARD
+        36  GCWLZQIUWFLJZS6OJTAGLEI3ZUDMK6F42XAABWFGC2PZRP6MMCDTNVRJ
+        32  GC5Z6AVWJKQI5AW72KHN5T6EXJ57FRN5ACJAQJOFBKSDBVWZCFCK4RD3
+        28  GAXV34EKW66LOJTDGTS4KBE3DWG7TBENK5I4XPSBB5VTRCDZMJKR4IJN
+  seen exactly once: 169
+
+eligible fee-bumped: 6274 of 8437 (74.4%)
+
+## Raw terminal error of eligible transactions
+
+      4566  Storage/ExceededLimit
+      2442  Contract
+      1254  Auth/ExistingValue
+       108  WasmVm/InvalidAction
+        34  Budget/ExceededLimit
+        28  Auth/InvalidInput
+         4  (none)
+         1  Auth/InvalidAction
+
+## Projected single-round yield by K (200 random subsets each)
+
+       K    mean      p5     p50     p95
+      50    12.3       8      12      17
+     100    15.2      12      15      19
+     200    18.2      15      18      21
+     300    20.3      18      20      23
+     500    22.1      19      22      25
+     750    23.7      22      24      26
+    1000    24.6      22      25      27
+    1500    26.5      25      27      27
+
+## Distinct eligible code clusters vs ledgers read (ledger order)
+
+  after   167 ledgers:   21 distinct
+  after   334 ledgers:   21 distinct
+  after   501 ledgers:   21 distinct
+  after   668 ledgers:   22 distinct
+  after   835 ledgers:   24 distinct
+  after  1002 ledgers:   24 distinct
+  after  1169 ledgers:   24 distinct
+  after  1336 ledgers:   25 distinct
+  after  1503 ledgers:   27 distinct
+  after  1670 ledgers:   28 distinct
+  after  1676 ledgers:   28 distinct
+
+## Eligible code clusters not yet seen (incidence, ledgers as units)
+
+  observed 28; in exactly one sampled ledger (Q1) 5, in exactly two (Q2) 1
+  Chao2 lower bound for the window: 40.5
+  expected distinct at 2514 ledgers: 30.3
+  expected distinct at 3352 ledgers: 32.1
+  expected distinct at 5028 ledgers: 34.9
+
+code clusters seen from more than one submitter: 15 of 28

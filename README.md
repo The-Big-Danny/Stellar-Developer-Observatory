@@ -200,6 +200,9 @@ providers, 13 of 13 transactions, 437 of 437 events decoded.
   per-provider measurements
 - [Failure taxonomy](docs/research/failure-taxonomy.md) — including which
   failure categories the corpus still has no fixture for
+- [M5 population pilot](docs/research/m5-population-pilot.md) — how much of
+  mainnet the accuracy evaluation can actually draw on, and why ~100 samples
+  is not reachable
 - [The canonical transaction model](docs/architecture/transaction-model.md) and
   [contract error resolution](docs/architecture/contract-errors.md)
 - [Failure classification rules](docs/architecture/rules.md) — what each rule
