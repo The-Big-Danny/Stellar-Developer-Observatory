@@ -150,6 +150,15 @@ pub struct RuleReport {
 
 /// The overall answer a diagnosis gives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        tag = "kind",
+        content = "confidence",
+        rename_all = "SCREAMING_SNAKE_CASE"
+    )
+)]
 pub enum Verdict {
     /// The transaction succeeded.
     NotAFailure,

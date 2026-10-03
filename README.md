@@ -179,6 +179,10 @@ What the committed fixtures produce:
 Against the live network, `sdo explain <TX_HASH>` does the same, fetching only
 the contract specs the transaction's errors need.
 
+Add `--json` to either form for a machine-readable diagnosis (verdict,
+candidate causes, evidence, contract errors) instead of the text report — see
+[`docs/json-output.md`](docs/json-output.md) for the schema.
+
 Measure an RPC endpoint yourself:
 
 ```bash
@@ -207,6 +211,7 @@ providers, 13 of 13 transactions, 437 of 437 events decoded.
   [contract error resolution](docs/architecture/contract-errors.md)
 - [Failure classification rules](docs/architecture/rules.md) — what each rule
   requires, its confidence levels, and what is not classified yet
+- [JSON output](docs/json-output.md) — the `sdo explain --json` schema
 
 ## Contributing
 

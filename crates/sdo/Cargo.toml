@@ -17,8 +17,7 @@ soroban-failure-analysis.workspace = true
 soroban-failure-rpc.workspace = true
 stellar-xdr.workspace = true
 clap.workspace = true
-
-[dev-dependencies]
+serde.workspace = true
 serde_json.workspace = true
 
 [lints.rust]

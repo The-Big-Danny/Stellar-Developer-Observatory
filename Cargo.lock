@@ -1016,6 +1016,7 @@ name = "sdo"
 version = "0.1.0-alpha.1"
 dependencies = [
  "clap",
+ "serde",
  "serde_json",
  "soroban-failure-analysis",
  "soroban-failure-rpc",

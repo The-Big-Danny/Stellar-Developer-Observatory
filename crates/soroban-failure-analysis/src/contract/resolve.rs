@@ -26,6 +26,39 @@ use stellar_xdr::{ContractId, ScError};
 use super::spec::{ContractSpec, ErrorLookup};
 use crate::model::TransactionModel;
 
+/// Serialises a raw 32-byte hash as lowercase hex, matching
+/// `stellar_xdr::Hash`'s `Display` format. Plain `[u8; 32]` arrays serialise
+/// as a JSON array of 32 numbers by default, which is correct but unusable by
+/// consumers expecting a hash string.
+#[cfg(feature = "serde")]
+mod hex32 {
+    use serde::{de::Error as _, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(bytes: &[u8; 32], s: S) -> Result<S::Ok, S::Error> {
+        let mut out = String::with_capacity(64);
+        for b in bytes {
+            out.push_str(&format!("{b:02x}"));
+        }
+        s.serialize_str(&out)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<[u8; 32], D::Error> {
+        let s = String::deserialize(d)?;
+        if s.len() != 64 {
+            return Err(D::Error::custom(format!(
+                "expected 64 hex characters, got {}",
+                s.len()
+            )));
+        }
+        let mut out = [0u8; 32];
+        for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
+            let hex_byte = std::str::from_utf8(chunk).map_err(D::Error::custom)?;
+            out[i] = u8::from_str_radix(hex_byte, 16).map_err(D::Error::custom)?;
+        }
+        Ok(out)
+    }
+}
+
 /// The host's message on the `error` event emitted when a contract raises its
 /// own error via `fail_with_error`.
 ///
@@ -98,6 +131,7 @@ pub enum SpecProvenance {
     /// the transaction loaded.
     MatchesFootprint {
         /// The WASM hash.
+        #[cfg_attr(feature = "serde", serde(with = "hex32"))]
         wasm_hash: [u8; 32],
     },
     /// The spec carries no WASM hash, or the transaction has no footprint to
@@ -150,6 +184,7 @@ pub enum ErrorResolution {
         /// The contract.
         contract: ContractId,
         /// The hash of the WASM the spec came from.
+        #[cfg_attr(feature = "serde", serde(with = "hex32"))]
         spec_wasm_hash: [u8; 32],
     },
     /// No single contract could be identified. See the report's
