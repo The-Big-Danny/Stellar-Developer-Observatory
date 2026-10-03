@@ -1,0 +1,29 @@
+[workspace]
+# Deliberately its own workspace, detached from the repository's main
+# workspace, like contract-trap. It exists only to be deployed to testnet so a
+# real missing-authorization failure can be captured. It is not part of the
+# analysis engine and must not pull soroban-sdk into its dependency tree.
+
+[package]
+name = "contract-auth"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Minimal contract that requires authorization from a caller-supplied address, used to capture a real missing-authorization fixture."
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = "22.0.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

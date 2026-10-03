@@ -13,23 +13,29 @@
 //! | [`ContractDefinedError`] | `ContractDefinedError` | terminal `Error(Contract, #N)` + M3 resolution |
 //! | [`InvalidAuthorizationEntry`] | `InvalidAuthorizationEntry` | host auth error: expired signature or reused nonce |
 //! | [`FootprintEntryMissing`] | `FootprintEntryMissing` | host footprint error event + key absent from footprint |
+//! | [`MissingAuthorizationEntry`] | `MissingAuthorizationEntry` | host auth error "Unauthorized function call for address" with no entry for that address |
+//! | [`ContractTrap`] | `ContractTrap` | terminal `Error(WasmVm, InvalidAction)` with the `UnreachableCodeReached` host message |
 //!
-//! *Missing* authorization (`MissingAuthorizationEntry`) has no rule: the
-//! fixture corpus contains no example, so its evidence shape is unknown.
+//! Missing authorization is covered by [`MissingAuthorizationEntry`], whose
+//! evidence shape was established from a real testnet capture.
 
 // Public so each rule's documented contract — what triggers it, what prevents
 // it, its confidence table and its fixtures — is published with the crate.
 pub mod archived;
 pub mod auth;
 pub mod contract_error;
+pub mod contract_trap;
 pub mod footprint;
+pub mod missing_auth;
 pub mod resource_fee;
 pub mod resource_limit;
 
 pub use archived::ArchivedEntry;
 pub use auth::{InvalidAuthorizationEntry, NONCE_REUSED_MARKER, SIGNATURE_EXPIRED_MARKER};
 pub use contract_error::ContractDefinedError;
+pub use contract_trap::ContractTrap;
 pub use footprint::{FootprintEntryMissing, FOOTPRINT_MARKER};
+pub use missing_auth::{MissingAuthorizationEntry, UNAUTHORIZED_MARKER};
 pub use resource_fee::InsufficientResourceFee;
 pub use resource_limit::ResourceLimitExceeded;
 

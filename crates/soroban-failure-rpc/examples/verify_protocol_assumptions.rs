@@ -40,7 +40,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 use soroban_failure_rpc::RpcClient;
-use stellar_xdr::{LedgerCloseMeta, LedgerHeaderHistoryEntry, Limits, ReadXdr};
+use stellar_xdr::{LedgerCloseMeta, LedgerHeaderHistoryEntry, ReadXdr};
 
 const DEFAULT_PROVIDERS: &str = "https://mainnet.sorobanrpc.com,https://rpc.lightsail.network";
 
@@ -84,7 +84,8 @@ fn call(client: &RpcClient, method: &str, params: Value) -> Option<Value> {
 /// The decoded `LedgerHeaderHistoryEntry` RPC returns as `headerXdr`.
 fn header_entry(ledger: &Value) -> Option<LedgerHeaderHistoryEntry> {
     let xdr = ledger.get("headerXdr")?.as_str()?;
-    LedgerHeaderHistoryEntry::from_xdr_base64(xdr, Limits::none()).ok()
+    LedgerHeaderHistoryEntry::from_xdr_base64(xdr, soroban_failure_rpc::xdr::limits_for_base64(xdr))
+        .ok()
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -134,9 +135,13 @@ fn close_meta_hashes(client: &RpcClient, ledger: u64) -> Option<BTreeSet<String>
     if entry["sequence"].as_u64() != Some(ledger) {
         return None;
     }
-    let meta = LedgerCloseMeta::from_xdr_base64(entry["metadataXdr"].as_str()?, Limits::none())
-        .map_err(|e| println!("  ----  metadataXdr did not decode: {e}"))
-        .ok()?;
+    let meta_xdr = entry["metadataXdr"].as_str()?;
+    let meta = LedgerCloseMeta::from_xdr_base64(
+        meta_xdr,
+        soroban_failure_rpc::xdr::limits_for_base64(meta_xdr),
+    )
+    .map_err(|e| println!("  ----  metadataXdr did not decode: {e}"))
+    .ok()?;
     let hashes = match meta {
         LedgerCloseMeta::V0(m) => m
             .tx_processing
@@ -191,8 +196,11 @@ fn archive_hash(archive: &str, ledger: u64) -> Result<String, String> {
         let body = raw
             .get(at + 4..at + 4 + len)
             .ok_or_else(|| format!("{url}: truncated record"))?;
-        let entry = LedgerHeaderHistoryEntry::from_xdr(body, Limits::none())
-            .map_err(|e| format!("{url}: record did not decode: {e}"))?;
+        let entry = LedgerHeaderHistoryEntry::from_xdr(
+            body,
+            soroban_failure_rpc::xdr::limits_for_bytes(body),
+        )
+        .map_err(|e| format!("{url}: record did not decode: {e}"))?;
         if u64::from(entry.header.ledger_seq) == ledger {
             return Ok(hex(&entry.hash.0));
         }

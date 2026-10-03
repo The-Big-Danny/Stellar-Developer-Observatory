@@ -8,8 +8,8 @@
 //!
 //! **M4 (partly complete)** adds ranked, evidence-backed candidate causes. Rules
 //! validated on real data cover contract-defined errors, missing footprint
-//! entries and invalid authorization; three result-code rules are validated
-//! only synthetically, and missing authorization has no rule. When no rule
+//! entries, invalid authorization, contract traps and missing authorization.
+//! Three result-code rules are validated only synthetically. When no rule
 //! finds enough evidence, the command says the cause is unknown rather than
 //! guessing. See `docs/architecture/rules.md` and `ROADMAP.md`.
 

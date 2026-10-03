@@ -79,8 +79,8 @@ fn every_fixture_decodes() {
 
 #[test]
 fn every_fixture_can_be_analysed_without_panicking() {
-    // The engine has no rules yet, so this asserts the pipeline is sound rather
-    // than that any particular cause is found.
+    // This asserts the pipeline is sound on every fixture rather than that any
+    // particular cause is found; the classification tests pin the causes.
     for dir in failed_fixtures() {
         let decoded = fixture::load(&dir).unwrap();
         let diagnosis = analyze(&decoded.input);

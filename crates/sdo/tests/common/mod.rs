@@ -20,6 +20,14 @@ pub const FEE_BUMP_49_ALT: &str = "soroban-trapped-feebump-49ev-alt";
 pub const CLASSIC: &str = "classic-failed-no-diagnostics";
 pub const AUTH_EXPIRED: &str = "soroban-auth-signature-expired";
 pub const AUTH_NONCE: &str = "soroban-auth-nonce-reused";
+/// A real Soroban testnet trap: `unwrap()` on `None` in a deliberately minimal
+/// contract. Unlike the mainnet fixtures, this one is not a contract-defined error.
+pub const TESTNET_TRAP: &str = "soroban-trapped-testnet-22ev";
+/// The contract whose `trigger` frame trapped in [`TESTNET_TRAP`].
+pub const TESTNET_TRAP_CONTRACT: &str = "CC5JULCIO5LSKKGECT5TK2TXNZHWH5ZNMKIAXARABVJUA7BV22XLOTK7";
+/// A real testnet missing-authorization failure: the authorization entry for a
+/// `require_auth()` was removed from a signed envelope before submission.
+pub const TESTNET_MISSING_AUTH: &str = "soroban-auth-missing-testnet";
 
 /// Analyse a fixture with contract specs resolved from `fixtures/contracts/`,
 /// the way `sdo explain --contracts` does.

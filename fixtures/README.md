@@ -52,19 +52,22 @@ The metadata is machine-readable and validated by CI. The fixture `README.md` re
 | `soroban-trapped-feebump-24ev` | `ContractTrap` | 24 | Baseline; the dominant mainnet failure shape |
 | `soroban-trapped-feebump-49ev` | `ContractTrap` | 49 | Same class, different event-list size and ledger region |
 | `soroban-trapped-feebump-49ev-alt` | `ContractTrap` | 49 | A third ledger, so a rule cannot pass by memorising one transaction |
+| `soroban-trapped-testnet-22ev` | `ContractTrap` | 22 | **Testnet, deliberately caused.** A panic (`unwrap()` on `None`) with no declared error; the only fixture ending in a bare WASM trap. Source in `contract-sources/contract-trap/` |
+| `soroban-auth-signature-expired`, `soroban-auth-nonce-reused` | Invalid authorization | — | Real mainnet authorization failures |
+| `soroban-auth-missing-testnet` | `MissingAuthorizationEntry` | 24 | **Testnet, deliberately caused.** A `require_auth()` whose authorization entry was removed before submission. Source in `contract-sources/contract-auth/` |
 | `classic-failed-no-diagnostics` | Classic (non-Soroban) | 0 | **Negative control.** Any rule that fires here is wrong |
 
-### ⚠️ This corpus is not yet good enough
+### Coverage gaps
 
-Every Soroban fixture is the same failure category, almost certainly the same
-arbitrage bots failing repeatedly. **Five of the six planned rule categories have
-no fixture at all**: auth, footprint, archival, resource limit, resource fee.
+Three planned rule categories still have no real fixture: archived entry,
+resource limit exceeded and insufficient resource fee. Their rules are validated
+only by synthetic tests.
 
-This is the project's biggest open risk and it blocks milestone M4. See
+This is the project's main open evidence gap for M4. See
 [the taxonomy](../docs/research/failure-taxonomy.md) and
 [ROADMAP.md](../ROADMAP.md).
 
-**Contributing a fixture for a missing category is one of the most valuable
+**Contributing a real fixture for a missing category is one of the most valuable
 things you can do here right now.**
 
 ## Capturing one

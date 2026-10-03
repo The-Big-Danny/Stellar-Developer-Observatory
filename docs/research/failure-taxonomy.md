@@ -150,7 +150,7 @@ Real fixtures per category now:
 | `ArchivedEntryRequiresRestore` | **0** — rule validated synthetically only |
 | `ResourceLimitExceeded` | **0** — rule validated synthetically only |
 | `InsufficientResourceFee` | **0** — rule validated synthetically only |
-| `MissingAuthorizationEntry` | **0** — no rule |
+| `MissingAuthorizationEntry` | **0** in the mainnet survey — rule added later, validated on deliberately caused testnet transactions only |
 
 The survey found no `EntryArchived`, `ResourceLimitExceeded` or
 `InsufficientRefundableFee` results at all, most likely because simulation stops

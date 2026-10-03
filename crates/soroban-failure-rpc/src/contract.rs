@@ -90,7 +90,7 @@ fn single_entry(result: &Value, what: &'static str) -> Result<LedgerEntryData, S
         .get("xdr")
         .and_then(Value::as_str)
         .ok_or_else(|| SourceError::Malformed("entry has no `xdr` field".into()))?;
-    LedgerEntryData::from_xdr_base64(xdr, Limits::none())
+    LedgerEntryData::from_xdr_base64(xdr, crate::xdr::limits_for_base64(xdr))
         .map_err(|e| SourceError::Malformed(e.to_string()))
 }
 
@@ -314,6 +314,9 @@ mod tests {
     fn keys_round_trip_through_xdr() {
         let k = instance_key(&cid(3));
         let b64 = k.to_xdr_base64(Limits::none()).unwrap();
-        assert_eq!(LedgerKey::from_xdr_base64(b64, Limits::none()).unwrap(), k);
+        assert_eq!(
+            LedgerKey::from_xdr_base64(&b64, crate::xdr::limits_for_base64(&b64)).unwrap(),
+            k
+        );
     }
 }

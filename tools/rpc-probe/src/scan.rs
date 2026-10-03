@@ -6,7 +6,7 @@
 //! and produces genuinely real samples rather than invented ones.
 
 use serde_json::Value;
-use stellar_xdr::{Limits, ReadXdr, TransactionEnvelope};
+use stellar_xdr::{ReadXdr, TransactionEnvelope};
 
 use crate::probe::soroban_operation_of;
 use crate::rpc::{RpcClient, RpcError};
@@ -68,8 +68,10 @@ pub fn scan_for_failed_soroban(
             let Some(envelope_b64) = tx.get("envelopeXdr").and_then(Value::as_str) else {
                 continue;
             };
-            let Ok(envelope) = TransactionEnvelope::from_xdr_base64(envelope_b64, Limits::none())
-            else {
+            let Ok(envelope) = TransactionEnvelope::from_xdr_base64(
+                envelope_b64,
+                soroban_failure_rpc::xdr::limits_for_base64(envelope_b64),
+            ) else {
                 continue;
             };
             let Some(operation) = soroban_operation_of(&envelope) else {

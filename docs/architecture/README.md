@@ -43,7 +43,7 @@
 - **[Contract error resolution](contract-errors.md)** — turning
   `Error(Contract, #2)` into `NoHarvestablePails` from the contract's own
   spec, and every honest way that can fail. Milestone M3.
-- **[Failure classification rules](rules.md)** — the six rules, the evidence
+- **[Failure classification rules](rules.md)** — the eight rules, the evidence
   each requires, confidence levels, verdicts, and the categories with no rule
   or no real fixture yet. Milestone M4.
 

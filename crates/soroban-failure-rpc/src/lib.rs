@@ -25,6 +25,7 @@ pub mod contract;
 pub mod decode;
 pub mod error;
 pub mod fixture;
+pub mod xdr;
 
 pub use client::RpcClient;
 pub use cluster::{
