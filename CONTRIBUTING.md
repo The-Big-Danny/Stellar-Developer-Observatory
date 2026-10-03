@@ -85,7 +85,7 @@ A fixture covering a category we have never seen is extremely valuable — see
 ## Adding a failure rule
 
 Rules are the unit of contribution here. Adding one should touch three things.
-Six rules already exist in `crates/soroban-failure-analysis/src/rules/`; read
+Eight rules already exist in `crates/soroban-failure-analysis/src/rules/`; read
 one, and [rules.md](docs/architecture/rules.md), before writing your own.
 
 ### 1. The rule
@@ -147,9 +147,17 @@ The one exception is a rule whose only evidence is a protocol result code
 defined as that exact cause; it may ship with synthetic tests if its docs say
 plainly that it is unvalidated.
 
+A real fixture does not have to be a mainnet occurrence. When a failure does not
+occur naturally, you may deliberately cause it on testnet and capture the result,
+as the `contract_trap` and `missing_authorization_entry` fixtures were. Such a
+fixture must say in its README that it was deliberately caused, and its contract
+source belongs under `fixtures/contract-sources/`. Testnet evidence shows the shape
+of a failure, not how often it occurs on mainnet, so it does not support a
+frequency claim.
+
 `cargo run -p soroban-failure-rpc --example survey_failures` samples mainnet
-and buckets failed Soroban transactions by how they failed, which is how the
-authorization fixtures were found.
+and buckets failed Soroban transactions by how they failed. That is how the
+mainnet authorization fixtures (expired signature, reused nonce) were found.
 
 ### 3. Tests: it fires, and it stays quiet
 
