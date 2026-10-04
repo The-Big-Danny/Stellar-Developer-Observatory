@@ -15,6 +15,15 @@ env:
 # network is a bug -- see docs/architecture/purity.md.
 
 jobs:
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-deny --locked --version 0.20.2
+      - run: cargo deny check
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
