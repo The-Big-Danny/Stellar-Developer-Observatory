@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" role="img" aria-labelledby="title">
+  <title id="title">Stellar Developer Observatory: See. Diagnose. Understand.</title>
+  <rect width="1280" height="640" fill="#0B1F2E"/>
+  <!-- The mark from sdo-mark.svg, scaled and recoloured for a dark background. -->
+  <g transform="translate(150 170) scale(4.2)">
+    <circle cx="32" cy="32" r="28" fill="none" stroke="#7FB8D4" stroke-width="2.4"/>
+    <circle cx="32" cy="32" r="19" fill="#12364A" stroke="#2A7FA8" stroke-width="1.8"/>
+    <path d="M32 13 V51 M13 32 H51" stroke="#2A7FA8" stroke-width="0.9" stroke-linecap="round" opacity="0.6"/>
+    <circle cx="32" cy="32" r="5" fill="#E0A526"/>
+  </g>
+  <text x="520" y="290" font-family="Helvetica, Arial, sans-serif" font-size="78" font-weight="700" fill="#F2F6F9">Stellar Developer</text>
+  <text x="520" y="375" font-family="Helvetica, Arial, sans-serif" font-size="78" font-weight="700" fill="#F2F6F9">Observatory</text>
+  <text x="520" y="450" font-family="Helvetica, Arial, sans-serif" font-size="36" fill="#E0A526">See. Diagnose. Understand.</text>
+  <text x="520" y="510" font-family="Helvetica, Arial, sans-serif" font-size="25" fill="#9FB7C6">Evidence-driven diagnostics for Stellar &amp; Soroban developers.</text>
+</svg>

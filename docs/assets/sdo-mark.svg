@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">SDO mark: a diagnostic lens with a signal at its centre</title>
+  <!-- Outer observatory tube: the instrument itself. -->
+  <circle cx="32" cy="32" r="28" fill="none" stroke="#0F3B57" stroke-width="3"/>
+  <!-- Lens: the evidence being examined. -->
+  <circle cx="32" cy="32" r="19" fill="#E8F1F7" stroke="#2A7FA8" stroke-width="2"/>
+  <!-- Graticule: the instrument's reference lines. -->
+  <path d="M32 13 V51 M13 32 H51" stroke="#2A7FA8" stroke-width="1" stroke-linecap="round" opacity="0.45"/>
+  <!-- Signal: the single point the observation resolves to. -->
+  <circle cx="32" cy="32" r="5" fill="#E0A526"/>
+</svg>
