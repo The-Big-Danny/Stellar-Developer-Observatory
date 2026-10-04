@@ -27,6 +27,18 @@ then gives the overall answer:
 | `Unsupported` | no implemented rule concerns this kind of failure |
 | `NotAFailure` | the transaction succeeded |
 
+```mermaid
+flowchart TD
+    start["Failed transaction"] --> succeeded{"Transaction succeeded?"}
+    succeeded -- yes --> notfail["NotAFailure"]
+    succeeded -- no --> run["Run every rule over the transaction model"]
+    run --> any{"Any rule returned Match?"}
+    any -- yes --> explained["Explained<br/>top candidate, at its confidence<br/>Confirmed, Likely or Possible"]
+    any -- no --> some{"Any rule returned NoEvidence?"}
+    some -- yes --> insufficient["Insufficient evidence<br/>unknown, with the missing evidence listed"]
+    some -- no --> unsupported["Unsupported<br/>no rule concerns this failure"]
+```
+
 `InsufficientEvidence` and `Unsupported` are different answers on purpose. The
 first says "we looked and could not tell"; the second says "we have no rule for
 this".
@@ -164,7 +176,7 @@ submission.
 
 | Category | Why not |
 |---|---|
-| `MalformedHostFunction` | Outside the initial six |
+| `MalformedHostFunction` | Has a `CauseClass` variant but no rule yet |
 | Any authorization failure other than expired signature, reused nonce or missing entry | Returns `NoEvidence` rather than guessing |
 | Classic operation failures | Not Soroban; reported as `Unsupported` |
 
