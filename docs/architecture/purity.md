@@ -56,13 +56,25 @@ therefore exercises real decoding, not a mock.
 
 ## How it is enforced
 
-Today, by dependency discipline and review. `soroban-failure-analysis` depends
-only on `stellar-xdr` and optionally `serde` — neither can perform I/O — and the
-manifest carries a comment saying so.
+Two mechanisms, one of them automatic:
 
-This is honest but not airtight: a future dependency could smuggle I/O in. A CI
-check that inspects the resolved dependency tree for the core crate is tracked
-in [issue #3](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/3).
+1. **CI (automatic).** The `analysis-purity` job runs
+   [`scripts/check-analysis-purity.sh`](../../scripts/check-analysis-purity.sh).
+   It lists every crate in the normal dependency tree of
+   `soroban-failure-analysis` and fails if any name is missing from
+   [`.github/analysis-dependency-allowlist.txt`](../../.github/analysis-dependency-allowlist.txt).
+   The check is an allowlist, not a denylist: a denylist only catches crates
+   someone thought to name. Adding `ureq` to the crate's manifest, for example,
+   fails it with `ureq` and its transitive networking crates listed.
+2. **Review.** The manifest carries a comment saying the crate must stay pure,
+   and a reviewer checks the justification for any new allowlist entry.
+
+The check covers the normal dependency tree only, with default features. It
+does not inspect build scripts or dev-dependencies. A build script runs on the
+contributor's machine at build time, so review remains the control there.
+
+To run it locally, from the repository root (Git Bash on Windows, or any Unix
+shell): `bash scripts/check-analysis-purity.sh`.
 
 ## If you need data the engine does not have
 
