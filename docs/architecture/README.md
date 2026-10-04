@@ -43,7 +43,7 @@
 - **[Contract error resolution](contract-errors.md)** — turning
   `Error(Contract, #2)` into `NoHarvestablePails` from the contract's own
   spec, and every honest way that can fail. Milestone M3.
-- **[Failure classification rules](rules.md)** — the six rules, the evidence
+- **[Failure classification rules](rules.md)** — the eight rules, the evidence
   each requires, confidence levels, verdicts, and the categories with no rule
   or no real fixture yet. Milestone M4.
 
@@ -65,7 +65,7 @@ Adding a failure mode is therefore **one file, one fixture, one test** — not a
 change to a growing central `match` that every contributor has to understand and
 that every PR conflicts on. This is the contributor pipeline expressed in code.
 
-The registry ships six rules. Each returns a match, "no evidence" or "not
+The registry ships eight rules. Each returns a match, "no evidence" or "not
 applicable", always with a reason when it does not match. What each requires is
 in [rules.md](rules.md).
 

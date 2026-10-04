@@ -38,8 +38,17 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (envelope_b64, result_b64) = ("", "");
-//! let envelope = TransactionEnvelope::from_xdr_base64(envelope_b64, Limits::none())?;
-//! let result = TransactionResult::from_xdr_base64(result_b64, Limits::none())?;
+//! // Bound every decode of untrusted XDR. The depth is an engineering safety
+//! // limit, not a protocol maximum; the length is the text length, which can
+//! // never be smaller than the decoded bytes.
+//! let envelope = TransactionEnvelope::from_xdr_base64(
+//!     envelope_b64,
+//!     Limits { depth: 500, len: envelope_b64.len() },
+//! )?;
+//! let result = TransactionResult::from_xdr_base64(
+//!     result_b64,
+//!     Limits { depth: 500, len: result_b64.len() },
+//! )?;
 //!
 //! let input = AnalysisInput::builder(envelope, result).build();
 //! let diagnosis = analyze(&input);

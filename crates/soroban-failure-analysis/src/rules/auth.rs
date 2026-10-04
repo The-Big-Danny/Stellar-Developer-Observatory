@@ -23,9 +23,9 @@
 //! it is impossible to tell a *missing* entry from an *invalid* one. It never
 //! turns a generic trap into an authorization failure.
 //!
-//! **Missing authorization** (`CauseClass::MissingAuthorizationEntry`) has no
-//! rule: the corpus contains no example of that failure, so its evidence shape
-//! is unknown.
+//! **Missing authorization** (`CauseClass::MissingAuthorizationEntry`) is handled
+//! by [`super::MissingAuthorizationEntry`], not here: it is a different failure,
+//! with a different host message, and this rule must not claim it.
 //!
 //! **Fixtures:** `soroban-auth-signature-expired` and `soroban-auth-nonce-reused`
 //! (real mainnet).
@@ -147,7 +147,7 @@ impl Rule for InvalidAuthorizationEntry {
             let _ = first;
             return RuleOutcome::no_evidence(format!(
                 "authorization failed with {}{}, a failure this rule does not recognise, so a \
-                 missing entry cannot be told apart from an invalid one",
+                 so it is not attributed to an invalid entry",
                 error_label(first_error),
                 first_message
                     .map(|m| format!(" (\"{m}\")"))
@@ -406,7 +406,7 @@ mod tests {
                 host_fn_failed(ScError::Auth(ScErrorCode::InvalidAction)),
             ],
         ) {
-            RuleOutcome::NoEvidence { reason } => assert!(reason.contains("cannot be told apart")),
+            RuleOutcome::NoEvidence { reason } => assert!(reason.contains("does not recognise")),
             other => panic!("expected NoEvidence, got {other:?}"),
         }
     }

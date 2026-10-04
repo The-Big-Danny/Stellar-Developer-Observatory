@@ -14,9 +14,10 @@
 > contract-error and invalid-authorization failures — the categories that
 > covered every failure in a one-week sample of 18,000 mainnet transactions.
 >
-> It says **unknown** when the evidence is not there. Missing authorization has
-> no rule yet, and three result-code rules are validated only against synthetic
-> data. See [the rules](docs/architecture/rules.md) and
+> It says **unknown** when the evidence is not there. Three result-code rules
+> are validated only against synthetic data. The contract-trap and
+> missing-authorization rules are validated against deliberately caused testnet
+> transactions, not mainnet occurrences. See [the rules](docs/architecture/rules.md) and
 > [ROADMAP.md](ROADMAP.md).
 >
 > Nothing in this README describes a capability that does not exist.
@@ -179,6 +180,10 @@ What the committed fixtures produce:
 Against the live network, `sdo explain <TX_HASH>` does the same, fetching only
 the contract specs the transaction's errors need.
 
+Add `--json` to either form for a machine-readable diagnosis (verdict,
+candidate causes, evidence, contract errors) instead of the text report — see
+[`docs/json-output.md`](docs/json-output.md) for the schema.
+
 Measure an RPC endpoint yourself:
 
 ```bash
@@ -207,6 +212,7 @@ providers, 13 of 13 transactions, 437 of 437 events decoded.
   [contract error resolution](docs/architecture/contract-errors.md)
 - [Failure classification rules](docs/architecture/rules.md) — what each rule
   requires, its confidence levels, and what is not classified yet
+- [JSON output](docs/json-output.md) — the `sdo explain --json` schema
 
 ## Contributing
 

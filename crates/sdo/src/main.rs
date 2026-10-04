@@ -8,11 +8,12 @@
 //!
 //! **M4 (partly complete)** adds ranked, evidence-backed candidate causes. Rules
 //! validated on real data cover contract-defined errors, missing footprint
-//! entries and invalid authorization; three result-code rules are validated
-//! only synthetically, and missing authorization has no rule. When no rule
+//! entries, invalid authorization, contract traps and missing authorization.
+//! Three result-code rules are validated only synthetically. When no rule
 //! finds enough evidence, the command says the cause is unknown rather than
 //! guessing. See `docs/architecture/rules.md` and `ROADMAP.md`.
 
+mod json;
 mod render;
 
 use std::path::PathBuf;
@@ -63,6 +64,11 @@ enum Command {
         /// contract error names as unavailable.
         #[arg(long, requires = "fixture")]
         contracts: Option<PathBuf>,
+
+        /// Print the diagnosis as JSON instead of the human-readable report.
+        /// See docs/json-output.md for the schema.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -82,6 +88,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         rpc,
         fixture,
         contracts,
+        json,
     } = Cli::parse().command;
 
     let (decoded, client) = match (&fixture, &tx) {
@@ -104,6 +111,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let diagnosis = analyze(&decoded.input.with_contract_specs(specs));
-    print!("{}", render::report(&model, &diagnosis));
+    if json {
+        println!("{}", json::report(&diagnosis));
+    } else {
+        print!("{}", render::report(&model, &diagnosis));
+    }
     Ok(())
 }

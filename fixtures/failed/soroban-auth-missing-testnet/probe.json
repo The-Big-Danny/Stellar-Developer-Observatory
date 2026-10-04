@@ -1,0 +1,40 @@
+{
+  "schema": "sdo.probe.v1",
+  "rpc_url": "https://soroban-testnet.stellar.org",
+  "network_passphrase": "Test SDF Network ; September 2015",
+  "transaction": "6c3a1a7e05a3b82de8b0082082ebe50dba742d5829428f8bebb86795b81b62e9",
+  "status": "FAILED",
+  "ledger": 5004662,
+  "is_soroban": true,
+  "soroban_operation": "invoke_host_function",
+  "envelope_xdr": {
+    "state": "DECODED"
+  },
+  "result_xdr": {
+    "state": "DECODED"
+  },
+  "result_meta_xdr": {
+    "state": "DECODED"
+  },
+  "meta_version": 4,
+  "soroban_meta_present": true,
+  "failure_signal": {
+    "transaction_result": "tx_failed",
+    "fee_bumped": false,
+    "inner_transaction_result": null,
+    "operation_results": [
+      "invoke_host_function_trapped"
+    ],
+    "failed_in_contract_execution": true
+  },
+  "diagnostic_events": {
+    "available": true,
+    "location": "top_level",
+    "count": 24,
+    "decoded_count": 24,
+    "decoded": true,
+    "decode_errors": []
+  },
+  "verdict": "SUFFICIENT_FOR_ANALYSIS",
+  "notes": []
+}

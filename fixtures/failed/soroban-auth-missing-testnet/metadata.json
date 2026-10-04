@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "6c3a1a7e05a3b82de8b0082082ebe50dba742d5829428f8bebb86795b81b62e9",
+  "network": "Test SDF Network ; September 2015",
+  "ledger": 5004662,
+  "captured_at": "2026-10-03T17:02:09.132444900+00:00",
+  "rpc_provider": "https://soroban-testnet.stellar.org",
+  "failure_category": "MissingAuthorizationEntry",
+  "fee_bumped": false,
+  "diagnostic_event_count": 24,
+  "purpose": "Real Soroban testnet missing-authorization failure. A contract's require_auth() ran for an address whose authorization entry was removed from the envelope before submission. The host reports Error(Auth, InvalidAction) with the message 'Unauthorized function call for address'. The category had no real fixture before this."
+}

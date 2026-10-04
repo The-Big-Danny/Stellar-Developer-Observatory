@@ -7,10 +7,11 @@
 use serde_json::Value;
 use soroban_failure_analysis::AnalysisInput;
 use stellar_xdr::{
-    DiagnosticEvent, Limits, ReadXdr, TransactionEnvelope, TransactionMeta, TransactionResult,
+    DiagnosticEvent, ReadXdr, TransactionEnvelope, TransactionMeta, TransactionResult,
 };
 
 use crate::error::DecodeError;
+use crate::xdr::limits_for_base64;
 
 /// Where the diagnostic events for a transaction were found.
 ///
@@ -77,7 +78,7 @@ fn locate_diagnostics(
 /// still evidence, and the count difference is visible to callers.
 fn decode_events(raw: &[&str]) -> Vec<DiagnosticEvent> {
     raw.iter()
-        .filter_map(|b| DiagnosticEvent::from_xdr_base64(b, Limits::none()).ok())
+        .filter_map(|b| DiagnosticEvent::from_xdr_base64(b, limits_for_base64(b)).ok())
         .collect()
 }
 
@@ -127,16 +128,17 @@ pub fn decode_get_transaction(
         .and_then(Value::as_str)
         .ok_or(DecodeError::MissingField("resultXdr"))?;
 
-    let envelope = TransactionEnvelope::from_xdr_base64(envelope_b64, Limits::none())
-        .map_err(|e| DecodeError::Xdr("envelopeXdr", e.to_string()))?;
-    let tx_result = TransactionResult::from_xdr_base64(result_b64, Limits::none())
+    let envelope =
+        TransactionEnvelope::from_xdr_base64(envelope_b64, limits_for_base64(envelope_b64))
+            .map_err(|e| DecodeError::Xdr("envelopeXdr", e.to_string()))?;
+    let tx_result = TransactionResult::from_xdr_base64(result_b64, limits_for_base64(result_b64))
         .map_err(|e| DecodeError::Xdr("resultXdr", e.to_string()))?;
 
     // Metadata is optional: it is genuinely absent for some transactions, and an
     // analyzer should degrade rather than refuse.
     let meta = match result.get("resultMetaXdr").and_then(Value::as_str) {
         Some(b64) => Some(
-            TransactionMeta::from_xdr_base64(b64, Limits::none())
+            TransactionMeta::from_xdr_base64(b64, limits_for_base64(b64))
                 .map_err(|e| DecodeError::Xdr("resultMetaXdr", e.to_string()))?,
         ),
         None => None,

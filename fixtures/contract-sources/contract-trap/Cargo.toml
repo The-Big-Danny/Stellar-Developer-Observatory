@@ -1,0 +1,30 @@
+[workspace]
+# Deliberately its own workspace, detached from the repository's main
+# workspace. This contract exists only to be deployed to testnet and
+# invoked so a real ContractTrap fixture can be captured — it is not part
+# of the sdo/soroban-failure-* product and must not pull soroban-sdk into
+# the analysis engine's dependency tree.
+
+[package]
+name = "contract-trap"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Minimal contract that panics unconditionally, used to capture a real ContractTrap fixture for issue #13."
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = "22.0.0"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

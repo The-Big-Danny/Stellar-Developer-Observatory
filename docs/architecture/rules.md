@@ -49,6 +49,8 @@ this".
 | `contract_defined_error` | `ContractDefinedError` | terminal `Error(Contract, #N)` | name resolved **and** spec WASM is in the footprint | `soroban-trapped-feebump-49ev`, `-49ev-alt` |
 | `invalid_authorization_entry` | `InvalidAuthorizationEntry` | host auth error: expired signature or reused nonce | expired signature corroborated by the envelope's own expiration ledger | `soroban-auth-signature-expired`, `soroban-auth-nonce-reused` |
 | `footprint_entry_missing` | `FootprintEntryMissing` | host "outside of the footprint" storage error | accessed key extracted **and** absent from the footprint | `soroban-trapped-feebump-24ev` |
+| `contract_trap` | `ContractTrap` | terminal `Error(WasmVm, InvalidAction)` with the `UnreachableCodeReached` host message | never (host text and error type, no source location) | `soroban-trapped-testnet-22ev` (real testnet, deliberately caused) |
+| `missing_authorization_entry` | `MissingAuthorizationEntry` | host auth error `Unauthorized function call for address` | the error ended the invocation **and** no authorization entry carries that address | `soroban-auth-missing-testnet` (real testnet, deliberately caused) |
 
 Each rule's module documentation (`crates/soroban-failure-analysis/src/rules/`)
 states exactly what triggers it, what prevents it, and its confidence table.
@@ -78,6 +80,39 @@ states exactly what triggers it, what prevents it, and its confidence table.
   under the other durability counts as declared. That can only lower
   confidence, never raise it.
 
+### `contract_trap`
+
+- **Evidence:** the `host_fn_failed` event with `Error(WasmVm, InvalidAction)`;
+  the error event whose host message is `VM call trapped: UnreachableCodeReached`,
+  which is a WebAssembly `unreachable` instruction. The emitting contract and
+  the function symbol come from that event, so the candidate names the frame.
+- **Confidence: `Likely`, never `Confirmed`.** The message is a host diagnostic
+  string, and no field names the source line that trapped. Confirming it would
+  mean claiming a panic site the evidence does not show.
+- **Prevents it:** any other `WasmVm` trap (out-of-bounds memory, division by
+  zero and so on), which returns `NoEvidence`. A declared contract error, and
+  host errors such as `Error(Auth, …)`, which return `NotApplicable`. No
+  diagnostic events.
+- **False-positive risk:** a `WasmVm` `unreachable` trap is not always a panic
+  written by the contract author. The rule therefore claims only "the contract
+  trapped on `unreachable`", and its remediation lists the panic sites to check.
+
+### `missing_authorization_entry`
+
+- **Evidence:** an `Error(Auth, InvalidAction)` event with the host message
+  `Unauthorized function call for address`, whose data names the address that
+  did not authorize; the envelope's authorization list.
+- **Confirmed** when the error ended the invocation and no authorization entry
+  in the envelope carries credentials for that address. The absence is checked
+  in the transaction, not inferred from the message.
+- **Likely** when the error did not end the invocation, or the address cannot be
+  read from the event.
+- **Prevents it:** the transaction's own source account, which authorizes its
+  invocations implicitly (`NotApplicable`); an address that does have an entry
+  (`NoEvidence`, see below); any other authorization error.
+- **Deliberately does not say** that the caller forgot to sign. The transaction
+  cannot show whether the entry was never built or was built and then removed.
+
 ### `invalid_authorization_entry`
 
 - **Evidence:** an `Error(Auth, …)` event with a recognised host message; the
@@ -86,9 +121,27 @@ states exactly what triggers it, what prevents it, and its confidence table.
   `signature_expiration_ledger` equals the expiry the host checked.
 - **Reused nonce → Likely.** Whether a nonce was already consumed is ledger
   state that the transaction data cannot prove, so it is never confirmed.
-- **Prevents it:** any other authorization error. An unrecognised
-  `Error(Auth, …)` returns `NoEvidence`, because without knowing the failure a
-  *missing* entry cannot be told from an *invalid* one.
+- **Prevents it:** a missing entry, which is `missing_authorization_entry`'s
+  message ("Unauthorized function call for address"); any authorization error
+  whose message this rule does not recognise, which returns `NoEvidence`. The
+  rule does not guess that an unknown failure is an invalid entry.
+
+### Missing or invalid: how the evidence tells them apart
+
+The two rules read different host messages, so one authorization failure is
+never claimed by both:
+
+| Host message (`Error(Auth, …)`) | Meaning | Rule | Confidence |
+|---|---|---|---|
+| `Unauthorized function call for address` | no entry for the address | `missing_authorization_entry` | `Confirmed` when the error ended the invocation and the envelope has no credentials for the address; otherwise `Likely` |
+| `signature has expired` | an entry exists, but its signature is out of date | `invalid_authorization_entry` | `Confirmed` when the error ended the invocation and the entry's expiry matches the one the host checked; `Likely` when it ended without that match; `Possible` when it did not end the invocation |
+| `nonce already exists for address` | an entry exists, but its nonce was already used | `invalid_authorization_entry` | `Likely` when the error ended the invocation and the address has an entry; otherwise `Possible`. Never `Confirmed` |
+| any other message | unknown | neither | `NoEvidence` |
+
+One case is claimed by neither rule: an authorization error whose address *has*
+an entry in the envelope but whose message is not one of the two above. Both
+rules return `NoEvidence` for it. It is reported as unknown, not as a missing or
+invalid entry.
 
 ### Result-code rules
 
@@ -111,10 +164,8 @@ submission.
 
 | Category | Why not |
 |---|---|
-| `MissingAuthorizationEntry` | No example in the corpus or the mainnet survey, so its evidence shape is unknown |
-| `ContractTrap` (panic without a declared error) | Outside the initial six; evidence shape not yet studied |
 | `MalformedHostFunction` | Outside the initial six |
-| Any authorization failure other than expired signature or reused nonce | Returns `NoEvidence` rather than guessing |
+| Any authorization failure other than expired signature, reused nonce or missing entry | Returns `NoEvidence` rather than guessing |
 | Classic operation failures | Not Soroban; reported as `Unsupported` |
 
 ## Host messages are not a stable API

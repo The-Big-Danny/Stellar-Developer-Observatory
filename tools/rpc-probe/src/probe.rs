@@ -34,10 +34,12 @@ impl ArtifactState {
     fn decode<T: ReadXdr>(field: Option<&str>) -> (Self, Option<T>) {
         match field {
             None => (Self::Absent, None),
-            Some(b64) => match T::from_xdr_base64(b64, Limits::none()) {
-                Ok(v) => (Self::Decoded, Some(v)),
-                Err(e) => (Self::DecodeFailed(e.to_string()), None),
-            },
+            Some(b64) => {
+                match T::from_xdr_base64(b64, soroban_failure_rpc::xdr::limits_for_base64(b64)) {
+                    Ok(v) => (Self::Decoded, Some(v)),
+                    Err(e) => (Self::DecodeFailed(e.to_string()), None),
+                }
+            }
         }
     }
 
@@ -306,7 +308,10 @@ pub fn probe_transaction(
     let mut decoded_count = 0usize;
     let mut decode_errors = Vec::new();
     for (i, b64) in raw_events.iter().enumerate() {
-        match DiagnosticEvent::from_xdr_base64(b64, Limits::none()) {
+        match DiagnosticEvent::from_xdr_base64(
+            b64,
+            soroban_failure_rpc::xdr::limits_for_base64(b64),
+        ) {
             Ok(_) => decoded_count += 1,
             Err(e) => decode_errors.push(format!("event {i}: {e}")),
         }

@@ -121,7 +121,9 @@ impl RuleRegistry {
             .register(Box::new(crate::rules::InsufficientResourceFee))
             .register(Box::new(crate::rules::ContractDefinedError))
             .register(Box::new(crate::rules::InvalidAuthorizationEntry))
-            .register(Box::new(crate::rules::FootprintEntryMissing));
+            .register(Box::new(crate::rules::FootprintEntryMissing))
+            .register(Box::new(crate::rules::ContractTrap))
+            .register(Box::new(crate::rules::MissingAuthorizationEntry));
         r
     }
 
@@ -199,6 +201,8 @@ mod tests {
                 "contract_defined_error",
                 "invalid_authorization_entry",
                 "footprint_entry_missing",
+                "contract_trap",
+                "missing_authorization_entry",
             ]
         );
     }

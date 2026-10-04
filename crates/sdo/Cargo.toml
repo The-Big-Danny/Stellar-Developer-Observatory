@@ -17,9 +17,11 @@ soroban-failure-analysis.workspace = true
 soroban-failure-rpc.workspace = true
 stellar-xdr.workspace = true
 clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+proptest = "1"
 
 [lints.rust]
 unsafe_code = "forbid"

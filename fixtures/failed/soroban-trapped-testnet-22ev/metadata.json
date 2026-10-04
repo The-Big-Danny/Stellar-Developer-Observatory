@@ -1,0 +1,11 @@
+{
+  "transaction_hash": "1f020cba1c06bc09422c9223546e5da5c2327b6bf380eac50fb43e7f57eaa8ad",
+  "network": "Test SDF Network ; September 2015",
+  "ledger": 5004398,
+  "captured_at": "2026-10-03T16:45:27.001053100+00:00",
+  "rpc_provider": "https://soroban-testnet.stellar.org",
+  "failure_category": "ContractTrap",
+  "fee_bumped": false,
+  "diagnostic_event_count": 22,
+  "purpose": "Real Soroban testnet ContractTrap. A minimal contract whose trigger() calls unwrap() on None was invoked on-chain. The host reports Error(WasmVm, InvalidAction) with UnreachableCodeReached, not a contract-declared error. Negative counterpart to the mainnet contract-defined-error fixtures."
+}
