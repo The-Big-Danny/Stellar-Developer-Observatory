@@ -10,8 +10,8 @@ is covered by tests. Nothing below is aspirational marketing.
 | **M2 — Transaction & XDR engine** | ✅ **Complete** (2026-09-11) |
 | **M3 — Contract error resolution** | ✅ **Complete** (2026-09-11) |
 | **M4 — Failure classification** | 🟡 **Partly complete** (updated 2026-10-03) — 5 of 8 rule categories validated on real data |
-| M5 — Accuracy & reliability | ⬜ Planned |
-| M6 — Developer experience | ⬜ Planned |
+| M5 — Accuracy & reliability | 🟡 In progress (protocol and pilot exist; evaluation not complete) |
+| M6 — Developer experience | 🟡 In progress (JSON output exists) |
 | M7 — Ecosystem integration | ⬜ Planned |
 | M8 — Observatory expansion | ⬜ Future |
 
@@ -153,7 +153,7 @@ insufficient fee), which is why M4 is partly complete. The missing fixtures are 
 > requires a real fixture. Missing authorization had no rule until a real
 > testnet capture existed for it.
 
-## ⬜ M5 — Accuracy & reliability
+## 🟡 M5 — Accuracy & reliability
 
 **Goal:** know how often we are right, and publish it.
 
@@ -166,13 +166,25 @@ insufficient fee), which is why M4 is partly complete. The missing fixtures are 
   labels
 - **Publish the number including the misses** — this is itself a differentiator
 - Calibrate confidence levels against observed accuracy
-- Harden decoding: explicit XDR depth and length limits, fuzzing
+- Harden decoding. RPC-supplied XDR now decodes under explicit depth and length
+  limits (`soroban-failure-rpc/src/xdr.rs`), and the limit values are documented
+  as engineering choices. Still open: fuzzing, and closing the acceptance criteria
+  in [issue #2](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/2).
 
-## ⬜ M6 — Developer experience
+## 🟡 M6 — Developer experience
 
-- JSON output and a published `Diagnosis` schema
+Done so far:
+
+- `sdo explain --json` serialises the same `Diagnosis` as the text report, with
+  the schema documented in [docs/json-output.md](docs/json-output.md)
+- A README and architecture documentation with diagrams
+
+Still open:
+
+- A versioned, published `Diagnosis` schema. The current schema is documented but
+  has no version field or compatibility guarantee.
 - Better CLI formatting; colour, quiet and verbose modes
-- Published docs and usage examples
+- Usage examples beyond the README
 - First crates.io release
 
 ## ⬜ M7 — Ecosystem integration

@@ -1,0 +1,62 @@
+# Crates permitted in the normal dependency tree of soroban-failure-analysis.
+#
+# That crate must perform no I/O (see docs/architecture/purity.md). This list is
+# checked by scripts/check-analysis-purity.sh in CI. A crate that is not listed
+# fails the build.
+#
+# Each entry is a crate NAME, one per line. Versions are deliberately not pinned
+# here, so routine dependency updates do not touch this file.
+#
+# To add a crate, you must explain in the PR why it cannot perform network,
+# filesystem, clock, environment or randomness access at runtime. Crates that
+# only run at build time, such as derive macros, are listed as "(proc-macro)"
+# below and count as safe because they are not linked into the library.
+#
+# Also check: the script only inspects the tree as resolved with default
+# features. Build scripts and dev-dependencies are excluded by --edges normal.
+
+soroban-failure-analysis
+
+# Canonical XDR and strkey implementations. Pure data encoding.
+stellar-xdr
+stellar-strkey
+
+# Serialisation (optional `serde` feature, enabled by default).
+serde
+serde_core
+serde_json
+serde_with
+serde_with_macros
+serde_derive
+schemars
+
+# Pure encoding and hashing.
+base64
+data-encoding
+hex
+ethnum
+escape-bytes
+sha2
+digest
+crypto-common
+generic-array
+block-buffer
+cpufeatures
+typenum
+cfg-if
+itoa
+memchr
+dyn-clone
+
+# Derive-macro support (proc-macro, build time only).
+cfg_eval
+darling
+darling_core
+darling_macro
+ident_case
+strsim
+proc-macro2
+quote
+syn
+unicode-ident
+zmij

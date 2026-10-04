@@ -10,11 +10,23 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
 
+# Read-only token: no job here needs to write to the repository.
+permissions:
+  contents: read
+
 # CI must never contact an RPC provider. Every test in this workspace runs
 # offline against the committed fixtures in fixtures/. A test that needs the
 # network is a bug -- see docs/architecture/purity.md.
 
 jobs:
+  analysis-purity:
+    name: analysis crate has no I/O dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bash scripts/check-analysis-purity.sh
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest

@@ -45,12 +45,15 @@ Mitigations in place:
 Report as a vulnerability: any input that causes a **panic**, an unbounded
 allocation, or a non-terminating loop.
 
-> **Note on decode limits.** Decoding currently uses `Limits::none()`. This is
-> appropriate for responses fetched from an RPC endpoint you chose to trust, but
-> it means a hostile *response* could request a very large allocation. Applying
-> explicit depth and length limits is tracked in
+> **Note on decode limits.** RPC-supplied XDR is decoded under explicit depth
+> and length limits, defined in `crates/soroban-failure-rpc/src/xdr.rs`. The
+> depth bound is an engineering safety limit chosen by this project. It is not a
+> Stellar protocol maximum, and it has not been measured against the deepest
+> legitimate data. The remaining work (configurable limits, and closing the
+> acceptance criteria) is tracked in
 > [issue #2](https://github.com/The-Big-Danny/Stellar-Developer-Observatory/issues/2).
-> Treat a demonstrated resource exhaustion as a valid report.
+> Treat a demonstrated resource exhaustion through any decode path as a valid
+> report.
 
 ### It makes outbound network requests
 
